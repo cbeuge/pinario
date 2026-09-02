@@ -27,6 +27,14 @@ Gebaut:
 * Verschlüsselung für die OAuth-Token (`app/tresor.py`)
 * Kanal-Schnittstelle (`app/kanaele/basis.py`) und Pinterest-Adapter als
   Gerüst
+* Lokale Datenbank steht, Anmeldung von Anfang bis Ende durchgespielt
+
+**Eine Regel, die man kennen muss:** eine Kampagne, die schon gepostet hat,
+lässt sich nicht löschen — die Datenbank weist es ab. Die Messreihe ist der
+Zweck der Anwendung, und sie beim Aufräumen stillschweigend mitzunehmen wäre
+der teuerste Knopf im Programm. Kampagnen werden auf `paused` gesetzt. Eine
+Kampagne ohne Veröffentlichungen lässt sich normal löschen. Ausführlich im
+Docstring von `PostedItem`.
 
 Noch nicht gebaut:
 
@@ -74,26 +82,54 @@ venv\Scripts\python.exe -c "import secrets; print(secrets.token_hex(32))"   SECR
 venv\Scripts\python.exe -m app.tresor neu                                   TRESOR_SCHLUESSEL
 ```
 
-Datenbank anlegen (lokales Postgres, als `postgres`):
-
-```
-createdb -U postgres pinario
-psql -U postgres -c "CREATE ROLE pinario LOGIN PASSWORD 'hier-was-eigenes'"
-psql -U postgres -d pinario -c "GRANT ALL ON SCHEMA public TO pinario"
-```
-
-Das Passwort daraus in die `DATABASE_URL` der `.env` eintragen. Dann:
+Die Datenbank steht am Entwicklungsrechner schon: `pinario`, angelegt am
+02.09.2026. Danach nur noch:
 
 ```
 venv\Scripts\python.exe -m alembic upgrade head
-venv\Scripts\python.exe -m flask --app wsgi passwort
 venv\Scripts\python.exe wsgi.py
 ```
 
 Läuft auf http://127.0.0.1:5001. Port 5001, weil betmaster lokal auf 5000
 liegt.
 
-**Die `.env` gehört nicht ins Repository.** Sie steht in `.gitignore`.
+**Lokal gehört die Datenbank der Rolle `bestellone`, nicht einer eigenen
+Rolle `pinario`.** Das ist Absicht und folgt dem, was auf diesem Rechner
+schon da war: `bestellone`, `betmaster`, `startklar` und `xtranu` gehören
+alle derselben Arbeitsrolle. Eine eigene Rolle anzulegen bräuchte den
+Superuser, und dessen Passwort hat auf dem Entwicklungsrechner keinen
+Mehrwert — getrennt werden die Projekte dort, wo es zählt, nämlich auf dem
+Server. Wer es lokal trotzdem sauber trennen will:
+
+```
+psql -U postgres -c "CREATE ROLE pinario LOGIN PASSWORD 'eigenes'"
+psql -U postgres -d pinario -c "ALTER DATABASE pinario OWNER TO pinario"
+psql -U postgres -d pinario -c "GRANT ALL ON SCHEMA public TO pinario"
+```
+
+Das lokale Anmeldepasswort steht in `.passwort-lokal.txt`, gewürfelt und
+nicht im Repository. Ändern:
+
+```
+venv\Scripts\python.exe -m flask --app wsgi passwort
+```
+
+**Die `.env` gehört nicht ins Repository.** Sie steht in `.gitignore`,
+zusammen mit `.passwort-lokal.txt`.
+
+### Pushen
+
+`ssh.exe` kann auf diesem Rechner `github.com` nicht auflösen, alles andere
+schon (`git ls-remote https://...` läuft normal). Deshalb geht ein Push über
+die IP, mit `HostKeyAlias`, damit der Hostschlüssel weiter gegen den
+bekannten `github.com`-Eintrag geprüft wird:
+
+```
+Resolve-DnsName github.com -Type A
+GIT_SSH_COMMAND='ssh -o HostKeyAlias=github.com' git push git@<IP>:cbeuge/pinario.git main
+```
+
+Die IP ändert sich, deshalb steht als `origin` weiter die normale Adresse.
 
 ## Die Marke
 
@@ -143,6 +179,16 @@ pinario.service                gunicorn auf 127.0.0.1:3008, 2 Arbeiter
 /etc/nginx/sites-available/pinario
 Datenbank pinario              eigene Rolle, nicht die der anderen Projekte
 ```
+
+**Auf dem Server dann wirklich eine eigene Rolle**, anders als lokal. Sonst
+käme pinario an die Daten der anderen Anwendungen auf demselben Postgres.
+
+`pinario.de` und `www.pinario.de` zeigen auf den Server, `admin.pinario.de`
+ebenfalls. Die Anwendung läuft auf `pinario.de`; für `admin` gibt es
+bewusst keinen eigenen Block, weil sie nicht gebraucht wird (Entscheidung
+vom 02.09.2026). Der DNS-Eintrag darf stehenbleiben. Wer sie später doch
+will: einen zweiten `server`-Block mit demselben `proxy_pass` anlegen und
+das Zertifikat um den Namen erweitern.
 
 Die Vorlagen liegen unter `betrieb/`. Der Ablauf beim ersten Mal:
 
