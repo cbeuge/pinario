@@ -25,9 +25,9 @@ Eintrag. Der Kanal trägt deshalb `affiliate_erlaubt = False`
 (`app/kanaele/basis.py`), damit die Regel an einer Stelle lebt statt als
 Sonderfall in der Kampagnen-Maske.
 
-## Stand am 02.09.2026
+## Stand am 03.09.2026
 
-Gebaut:
+**Live unter https://pinario.de.** Gebaut:
 
 * Marke als SVG in hell, dunkel und selbst umschaltend, dazu Favicon und
   PNG-Raster. Erzeugt aus `marke_quelle/logo2.png`, siehe unten
@@ -41,10 +41,14 @@ Gebaut:
 * Verschlüsselung für die OAuth-Token (`app/tresor.py`)
 * Kanal-Schnittstelle (`app/kanaele/basis.py`), dazu Pinterest und Google
   Business Profile als Adapter-Gerüst
-* Lokale Datenbank steht, Anmeldung von Anfang bis Ende durchgespielt
+* Lokale Datenbank steht, Anmeldung von Anfang bis Ende durchgespielt —
+  auf dem Server am 03.09.2026 ebenfalls, über die echte Adresse
 * Impressum und Datenschutz unter `/impressum` und `/datenschutz`, Texte aus
-  LegalHub. Öffentlich erreichbar, weil Pinterest beim Anlegen einer App
-  eine Datenschutz-Adresse verlangt
+  LegalHub (Slug `pinariode`). Öffentlich erreichbar, weil Pinterest beim
+  Anlegen einer App eine Datenschutz-Adresse verlangt. Das Impressum steht
+  seit dem 02.09.2026 vollständig in LegalHub; **die Datenschutzerklärung
+  ist dort noch ein Blindtext** und muss vor der Pinterest-App geschrieben
+  werden
 
 **Eine Regel, die man kennen muss:** eine Kampagne, die schon gepostet hat,
 lässt sich nicht löschen — die Datenbank weist es ab. Die Messreihe ist der
@@ -255,55 +259,64 @@ Farben: `#1a1a2e` dunkel, `#e8590c` orange.
 
 ## Auf dem Server
 
-Noch nicht ausgerollt. Vorgesehen analog zu betmaster und LeadRadar:
+**Live seit dem 03.09.2026 unter https://pinario.de.**
 
 ```
-/var/www/pinario               Code, venv, .env, logs, uploads
+/var/www/pinario               Code, venv, .env, logs, uploads, cache
 pinario.service                gunicorn auf 127.0.0.1:3008, 2 Arbeiter
 /etc/nginx/sites-available/pinario
-Datenbank pinario              eigene Rolle, nicht die der anderen Projekte
+Datenbank pinario              eigene Rolle, Passwort in /root/.pinario-dbpw
+Anmeldepasswort                in /root/.pinario-login
 ```
 
-**Auf dem Server dann wirklich eine eigene Rolle**, anders als lokal. Sonst
-käme pinario an die Daten der anderen Anwendungen auf demselben Postgres.
-
-`pinario.de` und `www.pinario.de` zeigen auf den Server, `admin.pinario.de`
-ebenfalls. Die Anwendung läuft auf `pinario.de`; für `admin` gibt es
-bewusst keinen eigenen Block, weil sie nicht gebraucht wird (Entscheidung
-vom 02.09.2026). Der DNS-Eintrag darf stehenbleiben. Wer sie später doch
-will: einen zweiten `server`-Block mit demselben `proxy_pass` anlegen und
-das Zertifikat um den Namen erweitern.
-
-Die Vorlagen liegen unter `betrieb/`. Der Ablauf beim ersten Mal:
+Beide Passwörter sind auf dem Server gewürfelt worden und stehen nur dort,
+mit Rechten 600 für root. Das Anmeldepasswort ändern:
 
 ```
-# Datenbank
-sudo -u postgres createdb pinario
-sudo -u postgres psql -c "CREATE ROLE pinario LOGIN PASSWORD '<neu>'"
-sudo -u postgres psql -d pinario -c "GRANT ALL ON SCHEMA public TO pinario"
+cd /var/www/pinario && sudo -u www-data ./venv/bin/flask --app wsgi passwort
+```
 
-# Code
-git clone <repo> /var/www/pinario
-cd /var/www/pinario
-python3 -m venv venv && ./venv/bin/pip install -r requirements.txt
-cp .env.example .env && nano .env          # PRODUKTION=1 nicht vergessen
-chown -R www-data:www-data /var/www/pinario
-chmod 600 .env
-./venv/bin/alembic upgrade head
-./venv/bin/flask --app wsgi passwort
+**Nur `pinario.de` ist erreichbar.** `www.pinario.de` und
+`admin.pinario.de` zeigen am 03.09.2026 noch auf All-Inkl
+(85.13.157.138). Das Zertifikat deckt deshalb nur die Hauptadresse ab.
+Sobald `www` auf `5.75.232.101` umgebogen ist:
 
-# Dienst und Proxy
-cp betrieb/pinario.service /etc/systemd/system/
-systemctl enable --now pinario
-cp betrieb/nginx-pinario.conf /etc/nginx/sites-available/pinario
-ln -s /etc/nginx/sites-available/pinario /etc/nginx/sites-enabled/
-nginx -t && systemctl reload nginx
+```
 certbot --nginx -d pinario.de -d www.pinario.de
 ```
 
-Aktualisieren danach (als root, nicht als `www-data`: der GitHub-Schlüssel
-liegt bei root, deshalb wird der Besitzer nach dem Ziehen wieder gerade
-gerückt):
+und in `betrieb/nginx-pinario.conf` den `server_name` erweitern. `admin`
+wird nicht gebraucht, siehe die Entscheidung vom 02.09.2026.
+
+Ein paar Dinge, die beim Ausrollen aufgefallen sind und beim nächsten Mal
+Zeit sparen:
+
+* **`git config --global --add safe.directory /var/www/pinario`** war nötig,
+  weil nach `chown -R www-data` das Repository root nicht mehr gehört.
+  Dasselbe steht dort schon für betmaster und cockpit.
+* Die Unit hat **`Type=notify`** und ein Timeout, wie bei betmaster. Die
+  Vorlage in `betrieb/` hatte das anfangs nicht.
+* **`cache/` gehört in `ReadWritePaths`.** Sonst kann die Anwendung die
+  Rechtstexte nicht zwischenspeichern und holt sie bei jedem Aufruf neu.
+* Alle festgenagelten Pakete haben unter **Python 3.14** sauber installiert.
+
+### Sicherung
+
+**Die Datenbank `pinario` wird nicht gesichert.** Auf dem Server läuft genau
+ein automatisches Sicherungsskript, `bestellone-backup.sh`, und das nimmt
+nur `bestellone` mit. Für die anderen Datenbanken liegen bloß von Hand
+gezogene Dumps unter `/root`.
+
+Solange nichts drinsteht, kostet das nichts. Sobald aber Kampagnen laufen,
+hält diese Datenbank die Messreihe, wegen der es die Anwendung überhaupt
+gibt — und die verschlüsselten Kanal-Zugänge. Spätestens dann gehört sie in
+eine Sicherung. Das ist bewusst nicht nebenbei mit ausgerollt worden: es ist
+eine Server-Aufgabe für alle acht Datenbanken, keine für pinario allein.
+
+## Aktualisieren
+
+Als root, nicht als `www-data`: der GitHub-Schlüssel liegt bei root,
+deshalb wird der Besitzer nach dem Ziehen wieder gerade gerückt.
 
 ```
 cd /var/www/pinario
