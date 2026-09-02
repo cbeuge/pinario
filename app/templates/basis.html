@@ -3,8 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-{# Ein internes Werkzeug hat in keinem Suchindex etwas verloren. #}
+{# Ein internes Werkzeug hat in keinem Suchindex etwas verloren. Impressum
+   und Datenschutz sind die Ausnahme: die sollen erreichbar und auffindbar
+   sein, und Pinterest ruft die Datenschutz-Adresse beim Anlegen der App ab.
+   Ein noindex darauf wäre ein Risiko ohne Gegenwert. #}
+{% if request.endpoint not in ('haupt.impressum', 'haupt.datenschutz') %}
 <meta name="robots" content="noindex, nofollow">
+{% endif %}
 <title>{% block titel %}pinario{% endblock %}</title>
 
 <meta name="theme-color" content="#12141c">
