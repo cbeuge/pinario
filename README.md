@@ -40,6 +40,9 @@ Gebaut:
 * Kanal-Schnittstelle (`app/kanaele/basis.py`), dazu Pinterest und Google
   Business Profile als Adapter-Geruest
 * Lokale Datenbank steht, Anmeldung von Anfang bis Ende durchgespielt
+* Impressum und Datenschutz unter `/impressum` und `/datenschutz`, Texte aus
+  LegalHub. Oeffentlich erreichbar, weil Pinterest beim Anlegen einer App
+  eine Datenschutz-Adresse verlangt
 
 **Eine Regel, die man kennen muss:** eine Kampagne, die schon gepostet hat,
 lässt sich nicht löschen — die Datenbank weist es ab. Die Messreihe ist der
@@ -71,7 +74,9 @@ app/
   sicherheit.py   CSRF-Token, echte Client-IP hinter nginx
   tresor.py       verschlüsselt die OAuth-Token
   zeit.py         Zeitzone an einer einzigen Stelle
-  views.py        Seiten hinter der Anmeldung
+  views.py        Seiten hinter der Anmeldung, dazu die Rechtstexte
+  rechtstexte.py  holt Impressum und Datenschutz aus LegalHub, mit Cache
+  rechtstext_saeubern.py  Erlaubnisliste fuer das HTML von dort
   cli.py          `flask passwort`, `flask kanaele-abgleichen`
   kanaele/        ein Adapter je Plattform
                   basis.py            was ein Kanal koennen muss
@@ -147,6 +152,66 @@ GIT_SSH_COMMAND='ssh -o HostKeyAlias=github.com' git push git@<IP>:cbeuge/pinari
 ```
 
 Die IP ändert sich, deshalb steht als `origin` weiter die normale Adresse.
+
+## Rechtstexte
+
+`/impressum` und `/datenschutz` sind oeffentlich, ohne Anmeldung, und von
+jeder Seite aus verlinkt. Das Impressum muss das sein; die
+Datenschutzerklaerung zusaetzlich, weil **Pinterest beim Anlegen einer App
+eine erreichbare Datenschutz-Adresse verlangt** — ohne die geht die
+Registrierung dort gar nicht erst los.
+
+Die Texte kommen aus LegalHub (`legal.carstenbeuge.de`), wie bei allen
+anderen Marken. **Nie eine zweite Fassung im Projekt ablegen**, sonst laufen
+zwei Fassungen auseinander und die falsche steht online.
+
+Der Domain-Slug dort muss `pinariode` heissen, analog zu `bestellonede` und
+`startklartools`. **Solange er in LegalHub nicht angelegt ist**, liefert die
+API 404 und die Seite zeigt einen Platzhalter — der Rest der Seite
+funktioniert normal.
+
+Ein Cache juenger als 24 Stunden wird genommen, sonst wird frisch geholt.
+Schlaegt der Abruf fehl, gilt der letzte bekannte Stand: Impressum und
+Datenschutz duerfen nie leer sein, auch nicht waehrend LegalHub neu startet.
+Der Cache liegt unter `cache/legal/` neben der Anwendung, damit ein Deploy
+ihn nicht wegraeumt.
+
+### Warum das HTML von dort geputzt wird
+
+LegalHub liefert HTML aus einem Rich-Text-Editor. Ungeputzt haenge die
+Sicherheit von pinario an einer zweiten Anwendung auf einem anderen Host,
+und der Dateicache wuerde einen boesartigen Text festhalten, auch nachdem
+die Quelle wieder sauber ist. In den Next-Projekten macht das
+`sanitize-html`; hier steht es in `app/rechtstext_saeubern.py`.
+
+**Selbst geschrieben statt `nh3` genommen**, weil auf dem Server Python 3.14
+laeuft und ein fehlendes Wheel dort einen Rust-Uebersetzer oder einen
+gescheiterten Deploy bedeutet. Der Bedarf ist eng genug, dass die
+Standardbibliothek reicht: Erlaubnisliste, alles wird neu zusammengesetzt,
+jeder Text- und Attributwert escaped.
+
+Selbst geschriebene Saeuberer liegen beruehmt still daneben, deshalb wird es
+nachgemessen statt geglaubt:
+
+```
+venv\Scripts\python.exe pruefe_rechtstext.py
+```
+
+37 Pruefungen: Skript-Tags, `javascript:` in allen Schreibweisen, `data:`,
+`onerror`, `svg onload`, `<base>`, Meta-Refresh, verschachtelt getarnte
+Tags — dazu die Gegenprobe, dass Absaetze, Listen, Tabellen, Links und
+Umlaute erhalten bleiben.
+
+`style` und `class` stehen bewusst nicht in der Erlaubnisliste. Quill setzt
+beides gern, die eigene CSP erlaubt aber kein Inline-CSS: das Attribut
+wuerde ohnehin still verworfen, und dann saehe die Seite lokal anders aus
+als auf dem Server.
+
+Getrennt davon, und bewusst nicht im Saeuberer, werden Quills Leerzeilen
+(`<p><br></p>`) entfernt. In echten Texten stehen davon bis zu drei
+hintereinander und reissen Loecher zwischen die Abschnitte. Das eine ist
+Sicherheit und darf nichts durchlassen, das andere Darstellung und darf
+nichts wegwerfen, was Text ist.
 
 ## Die Marke
 

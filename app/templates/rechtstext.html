@@ -1,0 +1,25 @@
+{% extends "basis.html" %}
+{% block titel %}{{ titel }} — pinario{% endblock %}
+
+{% block inhalt %}
+<article class="rechtstext">
+  <a class="zurueck" href="{{ url_for('auth.login') }}">
+    <img src="{{ url_for('static', filename='marke/pinario-dunkel.svg') }}"
+         alt="pinario" height="20">
+  </a>
+
+  <h1>{{ titel }}</h1>
+
+  {% if inhalt %}
+    {# Der Inhalt kommt aus LegalHub und ist durch app/rechtstext_saeubern.py
+       gegangen: Erlaubnisliste, alles andere ist weg. Ohne das Säubern hinge
+       die Sicherheit dieser Seite an einer zweiten Anwendung auf einem
+       anderen Host. #}
+    {{ inhalt | safe }}
+  {% else %}
+    <p class="hinweis">
+      Dieser Text ist noch nicht hinterlegt.
+    </p>
+  {% endif %}
+</article>
+{% endblock %}

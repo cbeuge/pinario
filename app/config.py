@@ -36,6 +36,10 @@ class Config:
     MAX_CONTENT_LENGTH = 64 * 1024 * 1024
     UPLOAD_ORDNER = BASIS / "uploads"
     LOG_ORDNER = BASIS / "logs"
+    # Rechtstexte aus LegalHub. Liegt neben der Anwendung, damit ein Deploy
+    # ihn nicht wegräumt: er ist der Rückfall, wenn LegalHub gerade nicht
+    # antwortet, und ein leerer Cache wäre dann eine leere Rechtstext-Seite.
+    CACHE_ORDNER = BASIS / "cache"
 
     # Schlüssel für die verschlüsselten OAuth-Token in der Tabelle accounts.
     TRESOR_SCHLUESSEL = os.environ.get("TRESOR_SCHLUESSEL", "")

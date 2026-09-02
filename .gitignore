@@ -6,5 +6,7 @@ logs/*
 !logs/.gitkeep
 uploads/*
 !uploads/.gitkeep
+cache/*
+!cache/.gitkeep
 temp/
 .passwort-lokal.txt

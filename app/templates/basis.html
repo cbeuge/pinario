@@ -42,5 +42,13 @@
   {% block inhalt %}{% endblock %}
 </main>
 
+{# Von jeder Seite erreichbar, nicht nur von der Startseite: das Impressum
+   muss das sein, und die Datenschutzerklärung braucht Pinterest beim
+   Anlegen der App als feste Adresse. #}
+<footer class="fuss">
+  <a href="{{ url_for('haupt.impressum') }}">Impressum</a>
+  <a href="{{ url_for('haupt.datenschutz') }}">Datenschutz</a>
+</footer>
+
 </body>
 </html>

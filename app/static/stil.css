@@ -39,9 +39,11 @@ a:hover { text-decoration: underline; }
   overflow: hidden; clip-path: inset(50%); white-space: nowrap;
 }
 
-/* Startseite: nur Marke und Anmeldung, mittig auf leerem Grund. */
+/* Startseite: nur Marke und Anmeldung, mittig auf leerem Grund.
+   Die Höhe ist der Bildschirm minus Fußzeile, sonst steht die Anmeldung
+   mittig und die Seite scrollt trotzdem um die Höhe der Fußzeile. */
 body.start main {
-  min-height: 100dvh;
+  min-height: calc(100dvh - 3.5rem);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -82,6 +84,34 @@ body.start main {
   cursor: pointer;
 }
 .anmeldung button:hover { background: var(--akzent-hell); }
+
+/* Fußzeile. Auf der Startseite sitzt sie unter der mittig stehenden
+   Anmeldung, deshalb bekommt main dort keine volle Bildschirmhöhe mehr,
+   sondern die Höhe abzüglich dieser Zeile. */
+.fuss {
+  display: flex;
+  gap: 1.25rem;
+  justify-content: center;
+  padding: 0 1rem 1.5rem;
+  font-size: .8rem;
+}
+.fuss a { color: var(--text-leise); }
+.fuss a:hover { color: var(--text); text-decoration: none; }
+
+/* Rechtstexte */
+.rechtstext { max-width: 42rem; }
+.rechtstext .zurueck { display: inline-block; margin-bottom: 2rem; }
+.rechtstext h1 { font-size: 1.5rem; margin-bottom: 1.5rem; }
+.rechtstext h2 { font-size: 1.05rem; margin: 2rem 0 .5rem; }
+.rechtstext h3 { font-size: .95rem; margin: 1.5rem 0 .4rem; }
+.rechtstext p, .rechtstext li { color: var(--text-leise); }
+.rechtstext li { margin-bottom: .3rem; }
+/* Lange Adressen und Mailadressen sprengen sonst die Zeile auf dem Telefon. */
+.rechtstext a { overflow-wrap: anywhere; }
+.rechtstext table { border-collapse: collapse; width: 100%; }
+.rechtstext th, .rechtstext td {
+  padding: .4rem .6rem; border: 1px solid var(--rand); text-align: left;
+}
 
 /* Kopf hinter der Anmeldung */
 .kopf {

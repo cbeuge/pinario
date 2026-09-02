@@ -4,15 +4,40 @@ Bisher nur die Übersicht. Kampagnen anlegen, Varianten erzeugen und der
 Zeitplan kommen als eigene Ansichten dazu.
 """
 
-from flask import Blueprint, render_template
+from flask import Blueprint, abort, render_template, request
 from flask_login import login_required
 from sqlalchemy import func, select
 
 from .extensions import db
 from .kanaele import AKTIV, BEKANNT
 from .models import Campaign, CampaignChannel, Channel, ContentItem, PostedItem
+from .rechtstexte import KATEGORIEN, rechtstext
 
 haupt = Blueprint("haupt", __name__)
+
+
+# Die beiden Adressen stehen ausdrücklich da und nicht als `/<kategorie>`.
+# Ein solches Muster fängt sonst auch `/uebersicht` und `/abmelden` ab,
+# sobald die Reihenfolge der Regeln sich einmal anders sortiert — ein Fehler,
+# der erst auffällt, wenn eine bestehende Seite plötzlich 404 liefert.
+@haupt.route("/impressum", endpoint="impressum")
+@haupt.route("/datenschutz", endpoint="datenschutz")
+def rechtstext_seite():
+    """Impressum und Datenschutz, öffentlich und ohne Anmeldung.
+
+    Öffentlich, weil beides von außen erreichbar sein muss: das Impressum
+    aus rechtlichen Gründen, die Datenschutzerklärung zusätzlich, weil
+    Pinterest beim Anlegen einer App eine erreichbare Adresse dafür
+    verlangt.
+    """
+    kategorie = request.path.lstrip("/")
+    if kategorie not in KATEGORIEN:
+        abort(404)
+    return render_template(
+        "rechtstext.html",
+        titel=KATEGORIEN[kategorie],
+        inhalt=rechtstext(kategorie),
+    )
 
 
 @haupt.route("/uebersicht")

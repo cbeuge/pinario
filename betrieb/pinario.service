@@ -22,9 +22,12 @@ ExecStart=/var/www/pinario/venv/bin/gunicorn \
 Restart=always
 RestartSec=5
 
-# Absichern. uploads und logs sind die einzigen Orte, an die geschrieben wird.
+# Absichern. Nur diese drei Orte werden beschrieben. Die Ordner müssen vor
+# dem ersten Start existieren — ReadWritePaths auf einen fehlenden Pfad
+# lässt den Dienst gar nicht erst hochkommen. Deshalb liegt in jedem eine
+# .gitkeep, damit sie ein frischer Clone mitbringt.
 ProtectSystem=strict
-ReadWritePaths=/var/www/pinario/uploads /var/www/pinario/logs
+ReadWritePaths=/var/www/pinario/uploads /var/www/pinario/logs /var/www/pinario/cache
 PrivateTmp=true
 NoNewPrivileges=true
 ProtectHome=true
