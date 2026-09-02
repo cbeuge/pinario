@@ -1,0 +1,153 @@
+/* Dunkle Oberfläche. Die Marke bringt das Orange mit, sonst hält sich die
+   Seite zurück: hier wird gearbeitet, nicht geworben. */
+
+:root {
+  --grund: #12141c;
+  --flaeche: #1b1e28;
+  --flaeche-hell: #232734;
+  --rand: #2d3140;
+  --text: #e7e9ef;
+  --text-leise: #969cad;
+  --akzent: #e8590c;
+  --akzent-hell: #f4762e;
+  --gruen: #35c07a;
+  --rot: #e55c5c;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--grund);
+  color: var(--text);
+  font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  -webkit-text-size-adjust: 100%;
+}
+
+main { max-width: 860px; margin: 0 auto; padding: 1.5rem 1rem 4rem; }
+
+h1 { font-size: 1.35rem; margin: 0 0 1rem; }
+h2 { font-size: 1.05rem; margin: 2.5rem 0 .6rem; }
+
+a { color: var(--akzent-hell); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+.leise { color: var(--text-leise); font-size: .875rem; }
+
+.unsichtbar {
+  position: absolute; width: 1px; height: 1px;
+  overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+}
+
+/* Startseite: nur Marke und Anmeldung, mittig auf leerem Grund. */
+body.start main {
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-bottom: 1.5rem;
+}
+
+.anmeldung { width: 100%; max-width: 320px; text-align: center; }
+
+/* Der Unterstrich der Wortmarke sitzt tief im Zeichen. Ohne die etwas
+   größere Lücke klebt das Passwortfeld optisch daran. */
+.anmeldung .logo { width: 100%; max-width: 240px; height: auto; margin-bottom: 2.75rem; }
+
+.anmeldung input[type="password"] {
+  width: 100%;
+  padding: .7rem .85rem;
+  background: var(--flaeche);
+  border: 1px solid var(--rand);
+  border-radius: 8px;
+  color: var(--text);
+  font: inherit;
+}
+.anmeldung input[type="password"]:focus {
+  outline: none;
+  border-color: var(--akzent);
+}
+.anmeldung input::placeholder { color: var(--text-leise); }
+
+.anmeldung button {
+  width: 100%;
+  margin-top: .6rem;
+  padding: .7rem .85rem;
+  background: var(--akzent);
+  border: none;
+  border-radius: 8px;
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.anmeldung button:hover { background: var(--akzent-hell); }
+
+/* Kopf hinter der Anmeldung */
+.kopf {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem 1rem;
+  align-items: center;
+  padding: .7rem 1rem;
+  background: var(--flaeche);
+  border-bottom: 1px solid var(--rand);
+}
+.kopf .marke { display: flex; align-items: center; }
+.kopf nav {
+  display: flex; flex-wrap: wrap; gap: .5rem 1.2rem;
+  align-items: center; justify-content: flex-end; margin-left: auto;
+}
+.kopf nav a { color: var(--text-leise); }
+.kopf nav a.aktiv { color: var(--text); border-bottom: 2px solid var(--akzent); }
+
+.textknopf {
+  background: none; border: none; color: var(--text-leise);
+  font: inherit; cursor: pointer; padding: 0;
+}
+.textknopf:hover { color: var(--text); }
+
+/* Meldungen */
+.meldungen { margin-bottom: 1rem; }
+.meldung {
+  margin: 0 0 .5rem; padding: .6rem .8rem;
+  border-radius: 8px; background: var(--flaeche-hell);
+  border-left: 3px solid var(--akzent);
+  text-align: left;
+}
+.meldung.fehler { border-left-color: var(--rot); }
+
+.hinweis {
+  padding: .9rem 1rem;
+  background: var(--flaeche);
+  border: 1px solid var(--rand);
+  border-radius: 10px;
+  color: var(--text-leise);
+}
+
+/* Listen */
+.liste { width: 100%; border-collapse: collapse; }
+.liste th, .liste td {
+  padding: .55rem .6rem;
+  border-bottom: 1px solid var(--rand);
+  text-align: left;
+}
+.liste th { font-size: .78rem; text-transform: uppercase; letter-spacing: .05em;
+            color: var(--text-leise); font-weight: 600; }
+.liste .zahl { text-align: right; font-variant-numeric: tabular-nums; }
+
+.status {
+  font-size: .78rem; padding: .1rem .5rem; border-radius: 999px;
+  background: var(--flaeche-hell); color: var(--text-leise);
+}
+.status.active { color: var(--gruen); }
+.status.paused { color: var(--text-leise); }
+
+.kanalliste { list-style: none; padding: 0; margin: 0;
+              display: flex; flex-wrap: wrap; gap: .5rem; }
+.kanalliste li {
+  padding: .35rem .75rem; border-radius: 999px;
+  background: var(--flaeche); border: 1px solid var(--rand);
+}
+.kanalliste li.aus { color: var(--text-leise); }
+.kanalliste li .leise { margin-left: .4rem; font-size: .78rem; }

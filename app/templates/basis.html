@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+{# Ein internes Werkzeug hat in keinem Suchindex etwas verloren. #}
+<meta name="robots" content="noindex, nofollow">
+<title>{% block titel %}pinario{% endblock %}</title>
+
+<meta name="theme-color" content="#12141c">
+<link rel="icon" href="{{ url_for('static', filename='marke/favicon.svg') }}" type="image/svg+xml">
+<link rel="stylesheet" href="{{ beigabe('stil.css') }}">
+</head>
+<body class="{% block koerperklasse %}{% endblock %}">
+
+{% if current_user.is_authenticated %}
+<header class="kopf">
+  <a class="marke" href="{{ url_for('haupt.uebersicht') }}">
+    <img src="{{ url_for('static', filename='marke/pinario-dunkel.svg') }}" alt="pinario" height="22">
+  </a>
+  <nav>
+    <a href="{{ url_for('haupt.uebersicht') }}" {% if request.endpoint == 'haupt.uebersicht' %}class="aktiv"{% endif %}>Übersicht</a>
+    <form method="post" action="{{ url_for('auth.logout') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button type="submit" class="textknopf">Abmelden</button>
+    </form>
+  </nav>
+</header>
+{% endif %}
+
+<main>
+  {% with meldungen = get_flashed_messages(with_categories=true) %}
+    {% if meldungen %}
+      <div class="meldungen">
+        {% for art, text in meldungen %}
+          <p class="meldung {{ art }}">{{ text }}</p>
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% endwith %}
+
+  {% block inhalt %}{% endblock %}
+</main>
+
+</body>
+</html>

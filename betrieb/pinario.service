@@ -1,0 +1,33 @@
+[Unit]
+Description=pinario
+After=network.target postgresql.service
+
+[Service]
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/pinario
+Environment="PATH=/var/www/pinario/venv/bin"
+# --no-control-socket: seit gunicorn 25.1 wird sonst beim Start ein Control
+# Socket unter $HOME/.gunicorn angelegt. Das Heimatverzeichnis von www-data
+# ist /var/www, und das ist wegen ProtectSystem=strict schreibgeschützt.
+# Ergebnis wäre eine Fehlerzeile bei jedem Start. Gebraucht wird das Socket
+# nicht, gesteuert wird über systemctl. (Erfahrung aus betmaster.)
+ExecStart=/var/www/pinario/venv/bin/gunicorn \
+    --workers 2 \
+    --bind 127.0.0.1:3008 \
+    --no-control-socket \
+    --access-logfile - \
+    --error-logfile - \
+    wsgi:app
+Restart=always
+RestartSec=5
+
+# Absichern. uploads und logs sind die einzigen Orte, an die geschrieben wird.
+ProtectSystem=strict
+ReadWritePaths=/var/www/pinario/uploads /var/www/pinario/logs
+PrivateTmp=true
+NoNewPrivileges=true
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target

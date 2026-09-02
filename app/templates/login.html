@@ -1,0 +1,20 @@
+{% extends "basis.html" %}
+{% block titel %}pinario{% endblock %}
+{% block koerperklasse %}start{% endblock %}
+
+{% block inhalt %}
+<div class="anmeldung">
+  <img class="logo" src="{{ url_for('static', filename='marke/pinario-dunkel.svg') }}"
+       alt="pinario" width="240">
+
+  <form method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    {# Kein Benutzernamefeld: es gibt genau einen Nutzer. Das Feld trägt
+       trotzdem einen Namen für den Passwortmanager. #}
+    <label class="unsichtbar" for="passwort">Passwort</label>
+    <input type="password" id="passwort" name="passwort" placeholder="Passwort"
+           autocomplete="current-password" autofocus required>
+    <button type="submit">Anmelden</button>
+  </form>
+</div>
+{% endblock %}
