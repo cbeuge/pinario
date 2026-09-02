@@ -185,3 +185,83 @@ body.start main {
 .kanalliste li.wartet { border-color: var(--akzent); color: var(--text); }
 .kanalliste li.wartet .leise { color: var(--akzent-hell); }
 .kanalliste li .leise { margin-left: .4rem; font-size: .78rem; }
+
+/* Kopfzeile einer Seite: Überschrift links, Knopf rechts. */
+.kopfzeile {
+  display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+.kopfzeile h1 { margin: 0; }
+.kopfzeile .knopf { margin-left: auto; }
+
+.brotkrume { margin: 0 0 .5rem; font-size: .85rem; }
+
+.knopf, .maske button:not(.textknopf), button.gefahr {
+  display: inline-block;
+  padding: .5rem .9rem;
+  background: var(--akzent);
+  border: none; border-radius: 8px;
+  color: #fff; font: inherit; font-weight: 600;
+  cursor: pointer; text-decoration: none;
+}
+.knopf:hover, .maske button:not(.textknopf):hover {
+  background: var(--akzent-hell); text-decoration: none;
+}
+
+/* Löschen sieht nicht aus wie Speichern. Der Knopf steht nur da, wenn es
+   nichts zu verlieren gibt, aber verwechseln soll man ihn trotzdem nicht. */
+button.gefahr { background: transparent; border: 1px solid var(--rot); color: var(--rot); }
+button.gefahr:hover { background: var(--rot); color: #fff; }
+
+/* Formulare */
+.maske { max-width: 32rem; }
+.maske.eng { max-width: 26rem; }
+.maske label {
+  display: block; margin: .9rem 0 .3rem;
+  font-size: .82rem; color: var(--text-leise);
+}
+.maske input[type="text"], .maske input[type="url"], .maske input[type="number"],
+.maske input[type="time"], .maske select, .maske textarea {
+  width: 100%;
+  padding: .55rem .7rem;
+  background: var(--flaeche);
+  border: 1px solid var(--rand);
+  border-radius: 8px;
+  color: var(--text);
+  font: inherit;
+}
+.maske textarea { resize: vertical; }
+.maske input:focus, .maske select:focus, .maske textarea:focus {
+  outline: none; border-color: var(--akzent);
+}
+.maske .knopfreihe {
+  display: flex; align-items: center; gap: 1rem; margin-top: 1.2rem;
+}
+/* Der Knopf soll sich an seinem Text messen, nicht an der Maskenbreite. */
+.maske .knopfreihe button { width: auto; }
+
+.zeitpaar { display: flex; align-items: center; gap: .6rem; }
+.zeitpaar input { flex: 1; }
+.zeitpaar span { color: var(--text-leise); font-size: .85rem; }
+
+/* Ein Kanal je Kasten */
+.kanalkasten {
+  padding: 1rem 1.1rem;
+  margin-bottom: .8rem;
+  background: var(--flaeche);
+  border: 1px solid var(--rand);
+  border-radius: 10px;
+}
+.kanalkasten.an { border-color: var(--akzent); }
+.kanalkasten h3 {
+  margin: 0; font-size: .98rem;
+  display: flex; align-items: center; gap: .6rem;
+}
+.kanalkasten .marker {
+  font-size: .72rem; font-weight: 400;
+  padding: .1rem .5rem; border-radius: 999px;
+  background: var(--flaeche-hell); color: var(--gruen);
+}
+.kanalkasten p.leise { margin: .4rem 0 0; }
+
+.meldung.erfolg { border-left-color: var(--gruen); }

@@ -1,0 +1,31 @@
+{% extends "basis.html" %}
+{% block titel %}Neue Kampagne — pinario{% endblock %}
+
+{% block inhalt %}
+<h1>Neue Kampagne</h1>
+
+<form method="post" class="maske">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+  <label for="name">Name</label>
+  <input type="text" id="name" name="name" maxlength="255" required
+         value="{{ werte.get('name', '') }}" placeholder="welcometap" autofocus>
+
+  <label for="target_url">Ziel-Link</label>
+  <input type="url" id="target_url" name="target_url" maxlength="2000" required
+         value="{{ werte.get('target_url', '') }}"
+         placeholder="https://welcometap.de">
+
+  <label for="status">Status</label>
+  <select id="status" name="status">
+    <option value="draft" {% if werte.get('status') == 'draft' %}selected{% endif %}>draft</option>
+    <option value="active" {% if werte.get('status') == 'active' %}selected{% endif %}>active</option>
+    <option value="paused" {% if werte.get('status') == 'paused' %}selected{% endif %}>paused</option>
+  </select>
+
+  <div class="knopfreihe">
+    <button type="submit">Anlegen</button>
+    <a href="{{ url_for('haupt.uebersicht') }}">Abbrechen</a>
+  </div>
+</form>
+{% endblock %}

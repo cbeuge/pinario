@@ -8,7 +8,7 @@ Kundenmaterial, keine echten Fotos von Menschen.
 Eine **Kampagne** hat einen Ziel-Link und wird auf mehrere Kanäle
 ausgespielt. Je Kanal entstehen mehrere **Varianten** desselben Inhalts:
 damit Pinterest keine Dubletten sieht, und damit sich messen lässt, welche
-Variante zieht. Dazu kommt bei manchen Kanaelen ein Ort innerhalb des
+Variante zieht. Dazu kommt bei manchen Kanälen ein Ort innerhalb des
 Kontos: Boards bei Pinterest, Standorte bei Google Business Profile.
 
 Erster Kanal ist Pinterest. Google Business Profile hat einen Adapter, ist
@@ -34,14 +34,16 @@ Gebaut:
 * Startseite: nur Wortmarke und Passwortfeld. Ein Nutzer, kein
   Registrierungs-Weg, Bremse nach fünf Fehlversuchen
 * Datenmodell vollständig. `0001_grundgeruest` legt alle Tabellen an und
-  traegt die ersten vier Kanaele ein, `0002_google_business` den fuenften
-* Übersicht hinter der Anmeldung: Kampagnen und Kanäle, noch ohne Anlegen
+  trägt die ersten vier Kanäle ein, `0002_google_business` den fünften
+* Übersicht hinter der Anmeldung, dazu Kampagnen anlegen, bearbeiten und
+  löschen. Je Kampagne lässt sich ein Kanal einschalten, mit Beiträgen pro
+  Tag, Zeitfenster und Board-Kennungen
 * Verschlüsselung für die OAuth-Token (`app/tresor.py`)
 * Kanal-Schnittstelle (`app/kanaele/basis.py`), dazu Pinterest und Google
-  Business Profile als Adapter-Geruest
+  Business Profile als Adapter-Gerüst
 * Lokale Datenbank steht, Anmeldung von Anfang bis Ende durchgespielt
 * Impressum und Datenschutz unter `/impressum` und `/datenschutz`, Texte aus
-  LegalHub. Oeffentlich erreichbar, weil Pinterest beim Anlegen einer App
+  LegalHub. Öffentlich erreichbar, weil Pinterest beim Anlegen einer App
   eine Datenschutz-Adresse verlangt
 
 **Eine Regel, die man kennen muss:** eine Kampagne, die schon gepostet hat,
@@ -53,7 +55,6 @@ Docstring von `PostedItem`.
 
 Noch nicht gebaut:
 
-* Kampagnen anlegen und bearbeiten
 * Content-Erzeugung über Gemini (Text, Bild, später Video)
 * Scheduler fürs zeitversetzte Posten
 * Pinterest wirklich verbinden und posten. Der Adapter kennt die Adressen,
@@ -76,10 +77,11 @@ app/
   zeit.py         Zeitzone an einer einzigen Stelle
   views.py        Seiten hinter der Anmeldung, dazu die Rechtstexte
   rechtstexte.py  holt Impressum und Datenschutz aus LegalHub, mit Cache
-  rechtstext_saeubern.py  Erlaubnisliste fuer das HTML von dort
+  rechtstext_saeubern.py  Erlaubnisliste für das HTML von dort
   cli.py          `flask passwort`, `flask kanaele-abgleichen`
+  formular.py     prüft Eingaben, liefert Sätze statt Ausnahmen
   kanaele/        ein Adapter je Plattform
-                  basis.py            was ein Kanal koennen muss
+                  basis.py            was ein Kanal können muss
                   pinterest.py        Pinterest API v5
                   google_business.py  Google Business Profile
 marke_quelle/     Vorlage und Werkzeug für die Logo-Dateien
@@ -155,9 +157,9 @@ Die IP ändert sich, deshalb steht als `origin` weiter die normale Adresse.
 
 ## Rechtstexte
 
-`/impressum` und `/datenschutz` sind oeffentlich, ohne Anmeldung, und von
+`/impressum` und `/datenschutz` sind öffentlich, ohne Anmeldung, und von
 jeder Seite aus verlinkt. Das Impressum muss das sein; die
-Datenschutzerklaerung zusaetzlich, weil **Pinterest beim Anlegen einer App
+Datenschutzerklärung zusätzlich, weil **Pinterest beim Anlegen einer App
 eine erreichbare Datenschutz-Adresse verlangt** — ohne die geht die
 Registrierung dort gar nicht erst los.
 
@@ -165,51 +167,51 @@ Die Texte kommen aus LegalHub (`legal.carstenbeuge.de`), wie bei allen
 anderen Marken. **Nie eine zweite Fassung im Projekt ablegen**, sonst laufen
 zwei Fassungen auseinander und die falsche steht online.
 
-Der Domain-Slug dort muss `pinariode` heissen, analog zu `bestellonede` und
+Der Domain-Slug dort muss `pinariode` heißen, analog zu `bestellonede` und
 `startklartools`. **Solange er in LegalHub nicht angelegt ist**, liefert die
 API 404 und die Seite zeigt einen Platzhalter — der Rest der Seite
 funktioniert normal.
 
-Ein Cache juenger als 24 Stunden wird genommen, sonst wird frisch geholt.
-Schlaegt der Abruf fehl, gilt der letzte bekannte Stand: Impressum und
-Datenschutz duerfen nie leer sein, auch nicht waehrend LegalHub neu startet.
+Ein Cache jünger als 24 Stunden wird genommen, sonst wird frisch geholt.
+Schlägt der Abruf fehl, gilt der letzte bekannte Stand: Impressum und
+Datenschutz dürfen nie leer sein, auch nicht während LegalHub neu startet.
 Der Cache liegt unter `cache/legal/` neben der Anwendung, damit ein Deploy
-ihn nicht wegraeumt.
+ihn nicht wegräumt.
 
 ### Warum das HTML von dort geputzt wird
 
-LegalHub liefert HTML aus einem Rich-Text-Editor. Ungeputzt haenge die
+LegalHub liefert HTML aus einem Rich-Text-Editor. Ungeputzt hinge die
 Sicherheit von pinario an einer zweiten Anwendung auf einem anderen Host,
-und der Dateicache wuerde einen boesartigen Text festhalten, auch nachdem
+und der Dateicache würde einen bösartigen Text festhalten, auch nachdem
 die Quelle wieder sauber ist. In den Next-Projekten macht das
 `sanitize-html`; hier steht es in `app/rechtstext_saeubern.py`.
 
 **Selbst geschrieben statt `nh3` genommen**, weil auf dem Server Python 3.14
-laeuft und ein fehlendes Wheel dort einen Rust-Uebersetzer oder einen
+läuft und ein fehlendes Wheel dort einen Rust-Uebersetzer oder einen
 gescheiterten Deploy bedeutet. Der Bedarf ist eng genug, dass die
 Standardbibliothek reicht: Erlaubnisliste, alles wird neu zusammengesetzt,
 jeder Text- und Attributwert escaped.
 
-Selbst geschriebene Saeuberer liegen beruehmt still daneben, deshalb wird es
+Selbst geschriebene Säuberer liegen berühmt still daneben, deshalb wird es
 nachgemessen statt geglaubt:
 
 ```
 venv\Scripts\python.exe pruefe_rechtstext.py
 ```
 
-37 Pruefungen: Skript-Tags, `javascript:` in allen Schreibweisen, `data:`,
+37 Prüfungen: Skript-Tags, `javascript:` in allen Schreibweisen, `data:`,
 `onerror`, `svg onload`, `<base>`, Meta-Refresh, verschachtelt getarnte
-Tags — dazu die Gegenprobe, dass Absaetze, Listen, Tabellen, Links und
+Tags — dazu die Gegenprobe, dass Absätze, Listen, Tabellen, Links und
 Umlaute erhalten bleiben.
 
 `style` und `class` stehen bewusst nicht in der Erlaubnisliste. Quill setzt
 beides gern, die eigene CSP erlaubt aber kein Inline-CSS: das Attribut
-wuerde ohnehin still verworfen, und dann saehe die Seite lokal anders aus
+würde ohnehin still verworfen, und dann sähe die Seite lokal anders aus
 als auf dem Server.
 
-Getrennt davon, und bewusst nicht im Saeuberer, werden Quills Leerzeilen
+Getrennt davon, und bewusst nicht im Säuberer, werden Quills Leerzeilen
 (`<p><br></p>`) entfernt. In echten Texten stehen davon bis zu drei
-hintereinander und reissen Loecher zwischen die Abschnitte. Das eine ist
+hintereinander und reißen Löcher zwischen die Abschnitte. Das eine ist
 Sicherheit und darf nichts durchlassen, das andere Darstellung und darf
 nichts wegwerfen, was Text ist.
 

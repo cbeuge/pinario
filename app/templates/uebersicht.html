@@ -2,7 +2,10 @@
 {% block titel %}Übersicht — pinario{% endblock %}
 
 {% block inhalt %}
-<h1>Kampagnen</h1>
+<div class="kopfzeile">
+  <h1>Kampagnen</h1>
+  <a class="knopf" href="{{ url_for('haupt.kampagne_neu') }}">Neue Kampagne</a>
+</div>
 
 {% if kampagnen %}
 <table class="liste">
@@ -12,7 +15,7 @@
   <tbody>
   {% for k in kampagnen %}
     <tr>
-      <td>{{ k.name }}</td>
+      <td><a href="{{ url_for('haupt.kampagne', kampagne_id=k.id) }}">{{ k.name }}</a></td>
       <td class="leise">{{ k.target_url }}</td>
       <td><span class="status {{ k.status }}">{{ k.status }}</span></td>
       <td class="zahl">{{ gepostet.get(k.id, 0) }}</td>

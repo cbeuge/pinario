@@ -40,6 +40,7 @@ class Pinterest(Kanal):
             name="Pinterest",
             unterstuetzt_ablagen=True,
             ablage_bezeichnung="Board",
+            ablage_mehrzahl="Boards",
             typen=("image", "video"),
             # Pinterest schneidet die Beschreibung eines Pins hier ab.
             max_beschreibung=800,

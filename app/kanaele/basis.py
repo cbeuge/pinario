@@ -67,8 +67,11 @@ class Kanal:
     unterstuetzt_ablagen: bool = False
     # Wie so ein Ort in der Oberfläche heißen soll. "Board" und "Standort"
     # sind für den Nutzer verschiedene Dinge, auch wenn der Code sie gleich
-    # behandelt.
+    # behandelt. Die Mehrzahl steht mit dabei, weil sie sich im Deutschen
+    # nicht anhängen lässt: aus "Board" wird "Boards", aus "Standort" wird
+    # "Standorte".
     ablage_bezeichnung: str = "Ablage"
+    ablage_mehrzahl: str = "Ablagen"
     # Was diese Plattform annimmt. Der Scheduler überspringt Inhalte, deren
     # Typ hier nicht steht, statt sie ins Leere zu schicken.
     typen: tuple[str, ...] = field(default_factory=lambda: ("image",))

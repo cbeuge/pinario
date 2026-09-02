@@ -67,6 +67,7 @@ class GoogleBusiness(Kanal):
             name="Google Business Profile",
             unterstuetzt_ablagen=True,
             ablage_bezeichnung="Standort",
+            ablage_mehrzahl="Standorte",
             # Nur Bilder. Video geht im Unternehmensprofil zwar, aber nicht
             # über denselben Weg wie ein Beitrag mit Bild, und ohne Not
             # kommt das hier nicht rein.

@@ -1,0 +1,101 @@
+{% extends "basis.html" %}
+{% block titel %}{{ kampagne.name }} — pinario{% endblock %}
+
+{% block inhalt %}
+<p class="brotkrume"><a href="{{ url_for('haupt.uebersicht') }}">Übersicht</a></p>
+<h1>{{ kampagne.name }}</h1>
+
+<form method="post" action="{{ url_for('haupt.kampagne_bearbeiten', kampagne_id=kampagne.id) }}" class="maske">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+  <label for="name">Name</label>
+  <input type="text" id="name" name="name" maxlength="255" required value="{{ kampagne.name }}">
+
+  <label for="target_url">Ziel-Link</label>
+  <input type="url" id="target_url" name="target_url" maxlength="2000" required
+         value="{{ kampagne.target_url }}">
+
+  <label for="status">Status</label>
+  <select id="status" name="status">
+    {% for wert in status_werte %}
+      <option value="{{ wert }}" {% if kampagne.status == wert %}selected{% endif %}>{{ wert }}</option>
+    {% endfor %}
+  </select>
+
+  <div class="knopfreihe">
+    <button type="submit">Speichern</button>
+  </div>
+</form>
+
+<h2>Kanäle</h2>
+
+{% for zeile in zeilen %}
+  <section class="kanalkasten {{ 'an' if zeile.verbindung else '' }}">
+    <h3>
+      {{ zeile.kanal.name }}
+      {% if zeile.verbindung %}<span class="marker">läuft</span>{% endif %}
+    </h3>
+
+    {% if not zeile.verfuegbar %}
+      <p class="leise">
+        {% if zeile.adapter %}Zugang fehlt{% else %}vorbereitet{% endif %}
+      </p>
+    {% else %}
+      <form method="post" action="{{ url_for('haupt.kampagne_kanal', kampagne_id=kampagne.id, channel_id=zeile.kanal.id) }}" class="maske eng">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <label for="quelle-{{ zeile.kanal.id }}">Inhalte</label>
+        <select id="quelle-{{ zeile.kanal.id }}" name="content_source">
+          {% set gewaehlt = zeile.verbindung.content_source if zeile.verbindung else 'ai_generated' %}
+          {% for wert in quellen %}
+            <option value="{{ wert }}" {% if gewaehlt == wert %}selected{% endif %}>
+              {{ 'erzeugen' if wert == 'ai_generated' else 'selbst hochladen' }}
+            </option>
+          {% endfor %}
+        </select>
+
+        <label for="proTag-{{ zeile.kanal.id }}">Beiträge pro Tag</label>
+        <input type="number" id="proTag-{{ zeile.kanal.id }}" name="posts_per_day"
+               min="1" max="25" required
+               value="{{ zeile.einstellungen.get('posts_per_day', 3) }}">
+
+        {% set fenster = zeile.einstellungen.get('time_window', ['09:00', '21:00']) %}
+        <label>Zeitfenster</label>
+        <div class="zeitpaar">
+          <input type="time" name="zeit_von" required value="{{ fenster[0] }}">
+          <span>bis</span>
+          <input type="time" name="zeit_bis" required value="{{ fenster[1] }}">
+        </div>
+
+        {% if zeile.adapter and zeile.adapter.unterstuetzt_ablagen %}
+          <label for="ablagen-{{ zeile.kanal.id }}">
+            {{ zeile.adapter.ablage_mehrzahl }}, eine Kennung je Zeile
+          </label>
+          <textarea id="ablagen-{{ zeile.kanal.id }}" name="board_ids" rows="3"
+                    placeholder="Kennung">{{ zeile.einstellungen.get('board_ids', []) | join('\n') }}</textarea>
+        {% endif %}
+
+        <div class="knopfreihe">
+          <button type="submit">{{ 'Speichern' if zeile.verbindung else 'Einschalten' }}</button>
+          {% if zeile.verbindung %}
+            <button type="submit" name="aktion" value="entfernen" class="textknopf">Ausschalten</button>
+          {% endif %}
+        </div>
+      </form>
+    {% endif %}
+  </section>
+{% endfor %}
+
+<h2>Kampagne löschen</h2>
+{% if loeschbar %}
+  <form method="post" action="{{ url_for('haupt.kampagne_loeschen', kampagne_id=kampagne.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button type="submit" class="gefahr">Kampagne löschen</button>
+  </form>
+{% else %}
+  <p class="hinweis">
+    Zu dieser Kampagne gibt es schon Veröffentlichungen. Setz sie auf
+    <strong>paused</strong>, wenn sie ruhen soll.
+  </p>
+{% endif %}
+{% endblock %}
