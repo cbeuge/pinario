@@ -38,8 +38,11 @@ class Pinterest(Kanal):
         super().__init__(
             key="pinterest",
             name="Pinterest",
-            unterstuetzt_boards=True,
+            unterstuetzt_ablagen=True,
+            ablage_bezeichnung="Board",
             typen=("image", "video"),
+            # Pinterest schneidet die Beschreibung eines Pins hier ab.
+            max_beschreibung=800,
         )
 
     def anmelde_adresse(self, zustand: str) -> str:

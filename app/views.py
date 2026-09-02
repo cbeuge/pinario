@@ -9,7 +9,7 @@ from flask_login import login_required
 from sqlalchemy import func, select
 
 from .extensions import db
-from .kanaele import AKTIV, ALLE
+from .kanaele import AKTIV, BEKANNT
 from .models import Campaign, CampaignChannel, Channel, ContentItem, PostedItem
 
 haupt = Blueprint("haupt", __name__)
@@ -44,13 +44,22 @@ def uebersicht():
         ).all()
     )
 
-    kanaele = db.session.scalars(select(Channel).order_by(Channel.id)).all()
+    # Drei Zustände, nicht zwei. Ein Kanal kann einen fertigen Adapter haben
+    # und trotzdem nicht benutzbar sein — bei Google Business Profile fehlt
+    # die Freischaltung durch Google, nicht der Code.
+    kanaele = []
+    for eintrag in db.session.scalars(select(Channel).order_by(Channel.id)):
+        if eintrag.key in AKTIV:
+            zustand, hinweis = "an", ""
+        elif eintrag.key in BEKANNT:
+            zustand, hinweis = "wartet", "Zugang fehlt"
+        else:
+            zustand, hinweis = "aus", "vorbereitet"
+        kanaele.append({"name": eintrag.name, "zustand": zustand, "hinweis": hinweis})
 
     return render_template(
         "uebersicht.html",
         kampagnen=kampagnen,
         gepostet=gepostet,
         kanaele=kanaele,
-        aktiv=AKTIV,
-        vorgesehen=[k for k, _ in ALLE],
     )

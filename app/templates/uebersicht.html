@@ -27,9 +27,9 @@
 <h2>Kanäle</h2>
 <ul class="kanalliste">
   {% for kanal in kanaele %}
-    <li class="{{ 'an' if kanal.key in aktiv else 'aus' }}">
+    <li class="{{ kanal.zustand }}">
       {{ kanal.name }}
-      {% if kanal.key not in aktiv %}<span class="leise">vorbereitet</span>{% endif %}
+      {% if kanal.hinweis %}<span class="leise">{{ kanal.hinweis }}</span>{% endif %}
     </li>
   {% endfor %}
 </ul>

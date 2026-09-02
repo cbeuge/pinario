@@ -8,10 +8,22 @@ Kundenmaterial, keine echten Fotos von Menschen.
 Eine **Kampagne** hat einen Ziel-Link und wird auf mehrere Kanäle
 ausgespielt. Je Kanal entstehen mehrere **Varianten** desselben Inhalts:
 damit Pinterest keine Dubletten sieht, und damit sich messen lässt, welche
-Variante zieht. Bei Pinterest kommt die Zuordnung zu Boards dazu.
+Variante zieht. Dazu kommt bei manchen Kanaelen ein Ort innerhalb des
+Kontos: Boards bei Pinterest, Standorte bei Google Business Profile.
 
-Erster Kanal ist Pinterest. Instagram, Facebook und X stehen als Struktur
-schon bereit, sind aber nicht aktiv.
+Erster Kanal ist Pinterest. Google Business Profile hat einen Adapter, ist
+aber noch nicht benutzbar (Zugang bei Google nicht beantragt). Instagram,
+Facebook und X stehen nur als Struktur bereit.
+
+**Google Business Profile ist der Ausreißer unter den Kanälen** und
+verdient zwei Sätze. Er erreicht Leute, die *das Unternehmen* suchen, nicht
+Leute, die nach einem Thema stöbern. Für die eigenen Werkzeuge ist er
+deshalb genau richtig, für Affiliate-Produkte nicht — und das ist keine
+Geschmacksfrage: Googles Richtlinien sind bei werblichen Fremdlinks im
+Unternehmensprofil streng, und die Folge ist im Zweifel ein gesperrter
+Eintrag. Der Kanal trägt deshalb `affiliate_erlaubt = False`
+(`app/kanaele/basis.py`), damit die Regel an einer Stelle lebt statt als
+Sonderfall in der Kampagnen-Maske.
 
 ## Stand am 02.09.2026
 
@@ -21,12 +33,12 @@ Gebaut:
   PNG-Raster. Erzeugt aus `marke_quelle/logo2.png`, siehe unten
 * Startseite: nur Wortmarke und Passwortfeld. Ein Nutzer, kein
   Registrierungs-Weg, Bremse nach fünf Fehlversuchen
-* Datenmodell vollständig, Migration `0001_grundgeruest` legt alle Tabellen
-  an und trägt die vier Kanäle ein
+* Datenmodell vollständig. `0001_grundgeruest` legt alle Tabellen an und
+  traegt die ersten vier Kanaele ein, `0002_google_business` den fuenften
 * Übersicht hinter der Anmeldung: Kampagnen und Kanäle, noch ohne Anlegen
 * Verschlüsselung für die OAuth-Token (`app/tresor.py`)
-* Kanal-Schnittstelle (`app/kanaele/basis.py`) und Pinterest-Adapter als
-  Gerüst
+* Kanal-Schnittstelle (`app/kanaele/basis.py`), dazu Pinterest und Google
+  Business Profile als Adapter-Geruest
 * Lokale Datenbank steht, Anmeldung von Anfang bis Ende durchgespielt
 
 **Eine Regel, die man kennen muss:** eine Kampagne, die schon gepostet hat,
@@ -44,6 +56,8 @@ Noch nicht gebaut:
 * Pinterest wirklich verbinden und posten. Der Adapter kennt die Adressen,
   ist aber **gegen die echte API noch nie gelaufen** — dafür fehlen die
   Zugangsdaten von developers.pinterest.com
+* Google Business Profile verbinden. Dasselbe wie bei Pinterest, plus die
+  Freischaltung durch Google, siehe unten
 * Auswertung der Zahlen je Variante
 
 ## Aufbau
@@ -60,6 +74,9 @@ app/
   views.py        Seiten hinter der Anmeldung
   cli.py          `flask passwort`, `flask kanaele-abgleichen`
   kanaele/        ein Adapter je Plattform
+                  basis.py            was ein Kanal koennen muss
+                  pinterest.py        Pinterest API v5
+                  google_business.py  Google Business Profile
 marke_quelle/     Vorlage und Werkzeug für die Logo-Dateien
 betrieb/          systemd-Unit und nginx-Konfiguration
 migrations/       Alembic
@@ -231,7 +248,7 @@ chmod 600 .env
 systemctl restart pinario
 ```
 
-## Zwei Dinge, die später Zeit kosten werden
+## Vier Dinge, die später Zeit kosten werden
 
 **Pinterest-App im Trial-Modus.** Eine frisch angelegte App darf nur auf das
 eigene Konto. Für pinario reicht das, weil nur eigene Konten bedient werden.
@@ -241,6 +258,25 @@ Wer das übersieht, sucht den Fehler an der falschen Stelle.
 Aufruf oder eine öffentlich erreichbare Adresse. Für die zweite Variante
 liefert nginx `uploads/` unter `/medien/` aus, siehe
 `betrieb/nginx-pinario.conf`.
+
+**Der Google-Zugang ist ein Antrag, kein Knopf.** Ein Projekt in der Cloud
+Console anzulegen und die Business-Profile-APIs zu aktivieren reicht nicht;
+der Zugang muss bei Google gesondert über ein Formular beantragt und
+freigeschaltet werden. Vorher liefert jeder Aufruf 403, obwohl an der
+eigenen Einrichtung nichts falsch ist. Deshalb steht `google_business`
+nicht in `AKTIV`.
+
+**Ohne bestätigten Standort gibt es bei Google nichts zu posten.** Ein
+Beitrag geht immer an einen Standort des Profils. Standorte sind dort das,
+was bei Pinterest die Boards sind, und werden im Code gleich behandelt
+(`Ablage`); in der Oberfläche heißen sie aber verschieden, dafür gibt es
+`ablage_bezeichnung`.
+
+Was in `app/kanaele/google_business.py` am wackligsten ist: Google hat die
+alte einheitliche My-Business-API in mehrere Dienste zerlegt, Konten und
+Standorte liegen woanders als die Beiträge. Die Pfade dort sind gegen die
+Dokumentation geschrieben, nicht gegen einen echten Aufruf. Vor dem ersten
+Einsatz gegenlesen.
 
 ## Zeitzone
 

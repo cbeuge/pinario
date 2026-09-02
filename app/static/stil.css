@@ -150,4 +150,8 @@ body.start main {
   background: var(--flaeche); border: 1px solid var(--rand);
 }
 .kanalliste li.aus { color: var(--text-leise); }
+/* Adapter da, aber noch nicht benutzbar. Zwischen "an" und "aus": heller
+   als vorbereitet, aber ohne den vollen Kontrast eines aktiven Kanals. */
+.kanalliste li.wartet { border-color: var(--akzent); color: var(--text); }
+.kanalliste li.wartet .leise { color: var(--akzent-hell); }
 .kanalliste li .leise { margin-left: .4rem; font-size: .78rem; }

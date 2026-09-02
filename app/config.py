@@ -52,6 +52,12 @@ class Config:
         "PINTEREST_REDIRECT_URI", "https://pinario.de/kanaele/pinterest/rueckruf"
     )
 
+    GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")
+    GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "")
+    GOOGLE_REDIRECT_URI = os.environ.get(
+        "GOOGLE_REDIRECT_URI", "https://pinario.de/kanaele/google/rueckruf"
+    )
+
     @staticmethod
     def pruefen() -> None:
         """Beim Start abbrechen, wenn in Produktion etwas Wichtiges fehlt.

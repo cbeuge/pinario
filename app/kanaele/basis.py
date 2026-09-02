@@ -5,9 +5,10 @@ Ein neuer Kanal ist damit: eine Zeile in `channels`, eine Datei hier, ein
 Eintrag in `__init__.py`. Am Scheduler und an den Ansichten ändert sich
 nichts.
 
-`unterstuetzt_boards` gibt es, weil Pinterest als einziger Kanal einen Ort
-innerhalb des Kontos kennt. Die Oberfläche fragt danach, statt "ist das
-Pinterest?" zu prüfen; sonst steht diese Frage später an zehn Stellen.
+Die Eigenschaften oben an `Kanal` beschreiben, was eine Plattform kann und
+verlangt. Sie stehen dort, damit die Oberfläche und der Scheduler nie
+"ist das Pinterest?" fragen müssen — sonst steht genau diese Frage später
+an zehn Stellen und eine davon wird beim nächsten Kanal vergessen.
 """
 
 from dataclasses import dataclass, field
@@ -16,7 +17,14 @@ from datetime import datetime
 
 @dataclass
 class Ablage:
-    """Ein Ort innerhalb eines Kontos, bei Pinterest ein Board."""
+    """Ein Ort innerhalb eines Kontos.
+
+    Bei Pinterest ein Board, bei Google Business Profile ein Standort. Beide
+    beantworten dieselbe Frage — wohin innerhalb des Kontos geht der Beitrag —
+    und werden deshalb gleich behandelt. Der Wert landet in
+    `posted_items.board_id`; die Spalte heißt aus dem ursprünglichen Entwurf
+    so, hält aber beides.
+    """
 
     id: str
     name: str
@@ -53,10 +61,25 @@ class Kanal:
 
     key: str = ""
     name: str = ""
-    unterstuetzt_boards: bool = False
+    # Ob der Kanal Orte innerhalb des Kontos kennt: Boards bei Pinterest,
+    # Standorte bei Google. Die Oberfläche fragt danach, statt "ist das
+    # Pinterest?" zu prüfen — sonst steht diese Frage später an zehn Stellen.
+    unterstuetzt_ablagen: bool = False
+    # Wie so ein Ort in der Oberfläche heißen soll. "Board" und "Standort"
+    # sind für den Nutzer verschiedene Dinge, auch wenn der Code sie gleich
+    # behandelt.
+    ablage_bezeichnung: str = "Ablage"
     # Was diese Plattform annimmt. Der Scheduler überspringt Inhalte, deren
     # Typ hier nicht steht, statt sie ins Leere zu schicken.
     typen: tuple[str, ...] = field(default_factory=lambda: ("image",))
+    # Längste Beschreibung, die die Plattform annimmt. Die Content-Erzeugung
+    # richtet sich danach; ohne diesen Wert schreibt Gemini Texte, die beim
+    # Posten abgeschnitten werden oder den Aufruf scheitern lassen.
+    max_beschreibung: int = 500
+    # Ob dort Affiliate-Inhalte hingehören. Google Business Profile sagt
+    # ausdrücklich nein, siehe den Adapter. Der Wert steht hier und nicht als
+    # Sonderfall in der Kampagnen-Maske, damit die Regel an einer Stelle lebt.
+    affiliate_erlaubt: bool = True
 
     # --- Verbinden -----------------------------------------------------
 
