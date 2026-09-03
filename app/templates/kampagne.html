@@ -15,6 +15,10 @@
   <input type="url" id="target_url" name="target_url" maxlength="2000" required
          value="{{ kampagne.target_url }}">
 
+  <label for="briefing">Briefing</label>
+  <textarea id="briefing" name="briefing" rows="6" maxlength="4000"
+            placeholder="Was ist das Angebot, für wen, welcher Ton? Was darf auf keinen Fall behauptet werden?">{{ kampagne.briefing or '' }}</textarea>
+
   <label for="status">Status</label>
   <select id="status" name="status">
     {% for wert in status_werte %}
@@ -82,6 +86,12 @@
           {% endif %}
         </div>
       </form>
+
+      {% if zeile.verbindung %}
+        <p class="kastenfuss">
+          <a href="{{ url_for('haupt.varianten', verbindung_id=zeile.verbindung.id) }}">Varianten</a>
+        </p>
+      {% endif %}
     {% endif %}
   </section>
 {% endfor %}

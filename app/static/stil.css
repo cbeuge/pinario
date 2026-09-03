@@ -265,3 +265,105 @@ button.gefahr:hover { background: var(--rot); color: #fff; }
 .kanalkasten p.leise { margin: .4rem 0 0; }
 
 .meldung.erfolg { border-left-color: var(--gruen); }
+
+/* Varianten. Ein Schwung gemeinsam erzeugter Vorschläge steht als Gruppe
+   zusammen, weil er gegeneinander gemessen wird. */
+.kastenfuss { margin: .8rem 0 0; font-size: .85rem; }
+
+.gruppe { margin-top: 2rem; }
+.gruppe > h2 {
+  font-size: .95rem; font-weight: 500;
+  display: flex; align-items: baseline; gap: .6rem;
+  padding-bottom: .5rem; border-bottom: 1px solid var(--rand);
+}
+
+.anfrage { margin: .8rem 0; font-size: .85rem; }
+.anfrage summary { color: var(--text-leise); cursor: pointer; }
+.anfrage summary:hover { color: var(--text); }
+.anfrage pre {
+  margin: .6rem 0 0;
+  padding: .8rem 1rem;
+  background: var(--flaeche);
+  border: 1px solid var(--rand);
+  border-radius: 8px;
+  color: var(--text-leise);
+  font-size: .8rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.variante {
+  padding: 1rem 1.1rem;
+  margin-top: .8rem;
+  background: var(--flaeche);
+  border: 1px solid var(--rand);
+  border-radius: 10px;
+}
+/* Freigegeben heißt: der Zeitplan nimmt sie mit. Das muss man beim
+   Überfliegen sehen, ohne den Status zu lesen. */
+.variante.ready { border-color: var(--gruen); }
+.variante.failed { border-color: var(--rot); }
+.variante .maske { max-width: none; }
+
+.variantenkopf {
+  display: flex; align-items: center; gap: .8rem;
+  font-size: .78rem;
+}
+.status.draft { color: var(--text-leise); }
+.status.ready { color: var(--gruen); }
+.status.posted { color: var(--akzent-hell); }
+.status.failed { color: var(--rot); }
+
+.vorschau {
+  display: block;
+  max-width: 320px; width: 100%; height: auto;
+  margin-top: .8rem;
+  border-radius: 8px;
+  border: 1px solid var(--rand);
+}
+
+/* Ankreuzfeld: der Text gehört daneben, nicht darüber wie bei den
+   anderen Beschriftungen. */
+label.kasten {
+  display: flex; align-items: center; gap: .5rem;
+  margin-top: .9rem;
+  font-size: .88rem; color: var(--text);
+}
+label.kasten input { width: auto; }
+
+.textknopf.gefaehrlich { color: var(--rot); }
+.textknopf.gefaehrlich:hover { color: var(--rot); text-decoration: underline; }
+
+/* Ausgeschaltet muss ausgeschaltet aussehen. Nur die Deckkraft zu senken
+   reicht bei einem orangen Knopf auf dunklem Grund nicht: er bleibt orange
+   und damit ein Knopf, den man drücken will. */
+.maske button:disabled {
+  background: var(--flaeche-hell);
+  color: var(--text-leise);
+  cursor: not-allowed;
+}
+.maske input:disabled, label.kasten:has(input:disabled) {
+  opacity: .5; cursor: not-allowed;
+}
+
+/* Einstellungen */
+.kanalkasten .marker.still { color: var(--text-leise); }
+.kanalkasten p.kastenfuss { margin-top: 1.2rem; }
+.kanalkasten .maske { margin-top: .4rem; }
+code {
+  font-size: .85em;
+  padding: .1rem .35rem;
+  border-radius: 5px;
+  background: var(--flaeche-hell);
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+.maske input[type="password"] {
+  width: 100%;
+  padding: .55rem .7rem;
+  background: var(--flaeche);
+  border: 1px solid var(--rand);
+  border-radius: 8px;
+  color: var(--text);
+  font: inherit;
+}

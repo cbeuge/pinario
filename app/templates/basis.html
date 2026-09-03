@@ -25,6 +25,7 @@
   </a>
   <nav>
     <a href="{{ url_for('haupt.uebersicht') }}" {% if request.endpoint == 'haupt.uebersicht' %}class="aktiv"{% endif %}>Übersicht</a>
+    <a href="{{ url_for('haupt.einstellungen_seite') }}" {% if request.endpoint == 'haupt.einstellungen_seite' %}class="aktiv"{% endif %}>Einstellungen</a>
     <form method="post" action="{{ url_for('auth.logout') }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <button type="submit" class="textknopf">Abmelden</button>

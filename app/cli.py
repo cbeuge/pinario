@@ -4,7 +4,7 @@ import click
 from flask import Flask
 from sqlalchemy import select
 
-from .auth import passwort_setzen
+from .auth import MIN_PASSWORTLAENGE, passwort_setzen
 from .extensions import db
 from .kanaele import ALLE
 from .models import Channel, User
@@ -19,9 +19,10 @@ def befehle_registrieren(app: Flask) -> None:
 
         Ein Passwortwechsel beendet alle noch offenen Anmeldungen.
         """
-        if len(passwort) < 12:
+        if len(passwort) < MIN_PASSWORTLAENGE:
             raise click.ClickException(
-                "Mindestens 12 Zeichen. Das ist der einzige Schutz vor der Tür."
+                f"Mindestens {MIN_PASSWORTLAENGE} Zeichen. Das ist der "
+                "einzige Schutz vor der Tür."
             )
 
         nutzer = db.session.scalar(select(User).where(User.benutzername == benutzer))

@@ -27,6 +27,11 @@ _fehlversuche: dict[str, tuple[int, object]] = {}
 MAX_VERSUCHE = 5
 SPERRE = timedelta(minutes=5)
 
+# Ein Nutzer, kein zweiter Faktor, keine Wiederherstellung: das Passwort ist
+# der einzige Schutz vor der Tür. Die Zahl steht hier und nicht zweimal im
+# Code, damit die Kommandozeile und die Oberfläche dieselbe Grenze ziehen.
+MIN_PASSWORTLAENGE = 12
+
 
 def _gesperrt(ip: str) -> bool:
     eintrag = _fehlversuche.get(ip)

@@ -1,0 +1,87 @@
+{% extends "basis.html" %}
+{% block titel %}Einstellungen — pinario{% endblock %}
+
+{% block inhalt %}
+<h1>Einstellungen</h1>
+
+<section class="kanalkasten {{ 'an' if herkunft else '' }}">
+  <h3>
+    Gemini
+    {% if herkunft == 'einstellung' %}
+      <span class="marker">hinterlegt</span>
+    {% elif herkunft == 'env' %}
+      <span class="marker still">aus der .env</span>
+    {% endif %}
+  </h3>
+
+  {% if not lesbar %}
+    <p class="hinweis">
+      Der gespeicherte Schlüssel lässt sich nicht mehr entschlüsseln.
+      TRESOR_SCHLUESSEL in der .env wurde gewechselt. Trag den
+      Gemini-Schlüssel neu ein.
+    </p>
+  {% elif herkunft == 'einstellung' %}
+    <p class="leise">Hinterlegt: <code>{{ verdeckt }}</code></p>
+  {% elif herkunft == 'env' %}
+    <p class="leise">
+      Es gilt der Schlüssel aus der .env. Ein hier eingetragener hat Vorrang.
+    </p>
+  {% else %}
+    <p class="leise">Kein Schlüssel hinterlegt. Varianten lassen sich von Hand anlegen.</p>
+  {% endif %}
+
+  <form method="post" action="{{ url_for('haupt.einstellungen_gemini') }}" class="maske eng">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    <label for="schluessel">API-Schlüssel</label>
+    {# type=password, damit er beim Eintippen nicht offen auf dem Schirm
+       steht. autocomplete=off, sonst bietet der Browser hier das
+       Anmeldepasswort an. #}
+    <input type="password" id="schluessel" name="schluessel" maxlength="200"
+           autocomplete="off" spellcheck="false" placeholder="AIza…">
+
+    <div class="knopfreihe">
+      <button type="submit" name="aktion" value="speichern">Speichern</button>
+      {% if herkunft %}
+        <button type="submit" name="aktion" value="pruefen" class="textknopf">Verbindung prüfen</button>
+      {% endif %}
+      {% if herkunft == 'einstellung' %}
+        <button type="submit" name="aktion" value="entfernen" class="textknopf gefaehrlich">Entfernen</button>
+      {% endif %}
+    </div>
+  </form>
+
+  <p class="kastenfuss leise">
+    Modelle: <code>{{ modell_text }}</code> für Text, <code>{{ modell_bild }}</code> für Bilder.
+    Beide stehen in der .env.
+  </p>
+</section>
+
+<section class="kanalkasten">
+  <h3>Passwort</h3>
+
+  <form method="post" action="{{ url_for('haupt.einstellungen_passwort') }}" class="maske eng">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    <label for="alt">Altes Passwort</label>
+    <input type="password" id="alt" name="alt" required autocomplete="current-password">
+
+    <label for="neu">Neues Passwort</label>
+    <input type="password" id="neu" name="neu" required minlength="{{ min_laenge }}"
+           autocomplete="new-password">
+
+    <label for="noch_mal">Noch einmal</label>
+    <input type="password" id="noch_mal" name="noch_mal" required minlength="{{ min_laenge }}"
+           autocomplete="new-password">
+
+    <div class="knopfreihe">
+      <button type="submit">Ändern</button>
+    </div>
+
+    <p class="kastenfuss leise">
+      Mindestens {{ min_laenge }} Zeichen. Anmeldungen auf anderen Geräten
+      werden dabei beendet.
+    </p>
+  </form>
+</section>
+{% endblock %}

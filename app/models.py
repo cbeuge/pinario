@@ -62,6 +62,31 @@ class User(UserMixin, db.Model):
         return f"{self.id}:{self.session_token}"
 
 
+class Einstellung(db.Model):
+    """Werte, die sich im Betrieb ändern, als Schlüssel und Wert.
+
+    Steht bewusst neben der `.env` und nicht in ihr: den Gemini-Schlüssel
+    soll Carsten aus der Oberfläche heraus wechseln können, ohne sich per
+    ssh anzumelden und den Dienst neu zu starten.
+
+    Geheime Werte liegen hier **verschlüsselt**, mit demselben Tresor wie
+    die OAuth-Token. Welche das sind, steht in `app/einstellungen.py`; das
+    Modell selbst kennt den Unterschied nicht, damit es nur eine Stelle
+    gibt, an der er entschieden wird.
+    """
+
+    __tablename__ = "einstellungen"
+
+    schluessel: Mapped[str] = mapped_column(String(50), primary_key=True)
+    wert: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    geaendert_am: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=jetzt, onupdate=jetzt, nullable=False
+    )
+
+    def __repr__(self) -> str:
+        return f"<Einstellung {self.schluessel}>"
+
+
 class Channel(db.Model):
     """Feste Referenztabelle statt Enum.
 
@@ -87,6 +112,11 @@ class Campaign(db.Model):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     target_url: Mapped[str] = mapped_column(Text, nullable=False)
+    # Was beworben wird, in eigenen Worten: Angebot, für wen, welcher Ton,
+    # was auf keinen Fall behauptet werden darf. Geht wörtlich in die Anfrage
+    # an Gemini. Ohne dieses Feld hätte die Anfrage nur Name und Ziel-Link,
+    # und was in der Anfrage fehlt, denkt sich das Modell aus.
+    briefing: Mapped[str | None] = mapped_column(Text)
     status: Mapped[str] = mapped_column(String(20), default="draft", nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=jetzt, nullable=False
@@ -206,6 +236,16 @@ class ContentItem(db.Model):
     description: Mapped[str | None] = mapped_column(Text)
     file_path: Mapped[str | None] = mapped_column(Text)
     variant_group: Mapped[str | None] = mapped_column(String(50))
+    # Erzeugt oder selbst hochgeladen. Steht auch am Kanal, dort aber als
+    # Absicht für künftige Varianten. Hier steht, was diese eine wirklich
+    # war — die Absicht kann sich zwischendurch geändert haben.
+    quelle: Mapped[str] = mapped_column(
+        String(20), default="upload", server_default="upload", nullable=False
+    )
+    # Die Anfrage, aus der diese Variante entstanden ist. Die Anwendung
+    # existiert, um zu messen welche Variante zieht; ohne diese Spalte lässt
+    # sich das Ergebnis nicht auf die Frage zurückführen.
+    prompt: Mapped[str | None] = mapped_column(Text)
     status: Mapped[str] = mapped_column(String(20), default="draft", nullable=False)
     # Nicht im ursprünglichen Schema. Ohne diese Spalte hat der Scheduler
     # nichts, worauf er filtern kann, und zeitversetztes Posten wäre nur eine

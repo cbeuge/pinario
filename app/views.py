@@ -1,22 +1,26 @@
 """Die Seiten hinter der Anmeldung, dazu die öffentlichen Rechtstexte.
 
-Varianten erzeugen und der Zeitplan kommen als eigene Ansichten dazu.
+Der Zeitplan kommt als eigene Ansicht dazu.
 """
 
 from flask import (
     Blueprint,
     abort,
+    current_app,
     flash,
     redirect,
     render_template,
     request,
+    send_from_directory,
     url_for,
 )
-from flask_login import login_required
+from flask_login import current_user, login_required, login_user
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
+from werkzeug.security import check_password_hash
 
-from . import formular
+from . import einstellungen, formular, ki
+from .auth import MIN_PASSWORTLAENGE, passwort_setzen
 from .extensions import db
 from .kanaele import AKTIV, BEKANNT, kanal
 from .models import (
@@ -127,6 +131,13 @@ def kampagne_neu():
                     request.form.get("name"), "Der Name", max_laenge=255
                 ),
                 target_url=formular.ziel_adresse(request.form.get("target_url")),
+                briefing=formular.text(
+                    request.form.get("briefing"),
+                    "Das Briefing",
+                    max_laenge=4000,
+                    pflicht=False,
+                )
+                or None,
                 status=formular.aus_auswahl(
                     request.form.get("status"), KAMPAGNE_STATUS, "Der Status"
                 ),
@@ -201,6 +212,12 @@ def kampagne_bearbeiten(kampagne_id: int):
             request.form.get("name"), "Der Name", max_laenge=255
         )
         eintrag.target_url = formular.ziel_adresse(request.form.get("target_url"))
+        eintrag.briefing = formular.text(
+            request.form.get("briefing"),
+            "Das Briefing",
+            max_laenge=4000,
+            pflicht=False,
+        ) or None
         eintrag.status = formular.aus_auswahl(
             request.form.get("status"), KAMPAGNE_STATUS, "Der Status"
         )
@@ -302,3 +319,344 @@ def kampagne_kanal(kampagne_id: int, channel_id: int):
     db.session.commit()
     flash(f"{kanal_eintrag.name} gespeichert.", "erfolg")
     return redirect(url_for("haupt.kampagne", kampagne_id=kampagne_id))
+
+
+# --- Varianten ---------------------------------------------------------
+
+
+def _verbindung_holen(verbindung_id: int) -> CampaignChannel:
+    verbindung = db.session.get(CampaignChannel, verbindung_id)
+    if verbindung is None:
+        abort(404)
+    return verbindung
+
+
+def _gruppen(verbindung: CampaignChannel) -> list[dict]:
+    """Varianten nach `variant_group` gebündelt, neueste Gruppe zuerst.
+
+    Zusammen erzeugte Varianten werden gegeneinander gemessen, also gehören
+    sie auch in der Ansicht zusammen. Eine einzeln hochgeladene Variante hat
+    keine Gruppe und steht für sich.
+    """
+    inhalte = db.session.scalars(
+        select(ContentItem)
+        .where(ContentItem.campaign_channel_id == verbindung.id)
+        .order_by(ContentItem.created_at.desc(), ContentItem.id.desc())
+    ).all()
+
+    # Ob eine Variante schon draußen ist, entscheidet über den Löschen-Knopf.
+    # Eine Abfrage für alle statt einer je Variante.
+    gepostet = set(
+        db.session.scalars(
+            select(PostedItem.content_item_id).where(
+                PostedItem.campaign_channel_id == verbindung.id
+            )
+        ).all()
+    )
+
+    reihenfolge: list[str] = []
+    gebuendelt: dict[str, list] = {}
+    for inhalt in inhalte:
+        schluessel = inhalt.variant_group or f"einzeln-{inhalt.id}"
+        if schluessel not in gebuendelt:
+            gebuendelt[schluessel] = []
+            reihenfolge.append(schluessel)
+        gebuendelt[schluessel].append(
+            {"inhalt": inhalt, "loeschbar": inhalt.id not in gepostet}
+        )
+
+    return [
+        {
+            "schluessel": schluessel,
+            "varianten": gebuendelt[schluessel],
+            "erzeugt_am": gebuendelt[schluessel][0]["inhalt"].created_at,
+            # Die Anfrage steht an jeder Variante der Gruppe gleich. Einmal
+            # anzeigen reicht, sonst steht derselbe Absatz achtmal da.
+            "prompt": gebuendelt[schluessel][0]["inhalt"].prompt,
+        }
+        for schluessel in reihenfolge
+    ]
+
+
+@haupt.route("/kanal/<int:verbindung_id>/varianten")
+@login_required
+def varianten(verbindung_id: int):
+    verbindung = _verbindung_holen(verbindung_id)
+    adapter = kanal(verbindung.kanal.key)
+    return render_template(
+        "varianten.html",
+        verbindung=verbindung,
+        kampagne=verbindung.kampagne,
+        adapter=adapter,
+        gruppen=_gruppen(verbindung),
+        max_varianten=ki.MAX_VARIANTEN,
+        kann_erzeugen=bool(einstellungen.gemini_herkunft()),
+    )
+
+
+@haupt.route("/kanal/<int:verbindung_id>/varianten/erzeugen", methods=["POST"])
+@login_required
+def varianten_erzeugen(verbindung_id: int):
+    verbindung = _verbindung_holen(verbindung_id)
+    kampagne_eintrag = verbindung.kampagne
+    adapter = kanal(verbindung.kanal.key)
+
+    try:
+        anzahl = formular.ganze_zahl(
+            request.form.get("anzahl"),
+            "Die Anzahl",
+            min_wert=ki.MIN_VARIANTEN,
+            max_wert=ki.MAX_VARIANTEN,
+        )
+    except formular.Ungueltig as fehler:
+        flash(str(fehler), "fehler")
+        return redirect(url_for("haupt.varianten", verbindung_id=verbindung_id))
+
+    mit_bild = request.form.get("mit_bild") == "ja"
+
+    anfrage = ki.anfrage_bauen(
+        kampagne_name=kampagne_eintrag.name,
+        ziel_url=kampagne_eintrag.target_url,
+        briefing=kampagne_eintrag.briefing,
+        kanal_name=verbindung.kanal.name,
+        max_beschreibung=adapter.max_beschreibung,
+        anzahl=anzahl,
+        affiliate_erlaubt=adapter.affiliate_erlaubt,
+    )
+
+    try:
+        vorschlaege = ki.texte_erzeugen(
+            anfrage, anzahl=anzahl, max_beschreibung=adapter.max_beschreibung
+        )
+    except ki.KIFehler as fehler:
+        current_app.logger.warning("Varianten erzeugen gescheitert: %s", fehler)
+        flash(str(fehler), "fehler")
+        return redirect(url_for("haupt.varianten", verbindung_id=verbindung_id))
+
+    gruppe = ki.variantengruppe()
+    bilder_gescheitert = 0
+
+    for vorschlag in vorschlaege:
+        pfad = None
+        if mit_bild:
+            # Ein gescheitertes Bild darf den ganzen Schwung nicht kosten.
+            # Der Text ist das Teure am Vorgang, das Bild lässt sich einzeln
+            # nachreichen.
+            try:
+                pfad = ki.bild_ablegen(
+                    ki.bild_erzeugen(
+                        f"{anfrage}\n\nBild zu diesem Vorschlag:\n"
+                        f"{vorschlag.titel}\n{vorschlag.beschreibung}"
+                    )
+                )
+            except ki.KIFehler as fehler:
+                current_app.logger.warning("Bild gescheitert: %s", fehler)
+                bilder_gescheitert += 1
+
+        db.session.add(
+            ContentItem(
+                campaign_channel_id=verbindung.id,
+                type="image" if pfad else "text",
+                title=vorschlag.titel,
+                description=vorschlag.beschreibung,
+                file_path=pfad,
+                variant_group=gruppe,
+                quelle="ai_generated",
+                prompt=anfrage,
+                status="draft",
+            )
+        )
+
+    db.session.commit()
+
+    flash(f"{len(vorschlaege)} Variante(n) erzeugt.", "erfolg")
+    if bilder_gescheitert:
+        flash(
+            f"Bei {bilder_gescheitert} davon hat das Bild nicht geklappt. "
+            "Der Text steht trotzdem.",
+            "fehler",
+        )
+    return redirect(url_for("haupt.varianten", verbindung_id=verbindung_id))
+
+
+@haupt.route(
+    "/kanal/<int:verbindung_id>/varianten/<int:inhalt_id>", methods=["POST"]
+)
+@login_required
+def variante_aendern(verbindung_id: int, inhalt_id: int):
+    verbindung = _verbindung_holen(verbindung_id)
+    inhalt = db.session.get(ContentItem, inhalt_id)
+    # Die Zugehörigkeit wird geprüft, nicht angenommen. Sonst ließe sich über
+    # eine fremde Kennung eine Variante einer anderen Kampagne ändern.
+    if inhalt is None or inhalt.campaign_channel_id != verbindung.id:
+        abort(404)
+
+    ziel = url_for("haupt.varianten", verbindung_id=verbindung_id)
+    aktion = request.form.get("aktion", "speichern")
+
+    if aktion == "loeschen":
+        try:
+            db.session.delete(inhalt)
+            db.session.commit()
+        except IntegrityError:
+            db.session.rollback()
+            flash(
+                "Diese Variante ist schon veröffentlicht. Sie lässt sich "
+                "nicht löschen, ohne die Auswertung mitzunehmen.",
+                "fehler",
+            )
+            return redirect(ziel)
+        flash("Variante gelöscht.", "erfolg")
+        return redirect(ziel)
+
+    if aktion == "freigeben":
+        inhalt.status = "ready"
+        db.session.commit()
+        flash("Variante freigegeben. Der Zeitplan nimmt sie mit.", "erfolg")
+        return redirect(ziel)
+
+    if aktion == "zurueckziehen":
+        inhalt.status = "draft"
+        db.session.commit()
+        flash("Variante zurückgezogen.", "erfolg")
+        return redirect(ziel)
+
+    try:
+        inhalt.title = formular.text(
+            request.form.get("titel"), "Der Titel", max_laenge=255
+        )
+        inhalt.description = formular.text(
+            request.form.get("beschreibung"), "Die Beschreibung", max_laenge=4000
+        )
+    except formular.Ungueltig as fehler:
+        db.session.rollback()
+        flash(str(fehler), "fehler")
+        return redirect(ziel)
+
+    db.session.commit()
+    flash("Gespeichert.", "erfolg")
+    return redirect(ziel)
+
+
+# --- Einstellungen -----------------------------------------------------
+
+
+@haupt.route("/einstellungen")
+@login_required
+def einstellungen_seite():
+    schluessel = einstellungen.hole(einstellungen.GEMINI_SCHLUESSEL)
+    return render_template(
+        "einstellungen.html",
+        herkunft=einstellungen.gemini_herkunft(),
+        verdeckt=einstellungen.verdeckt(schluessel),
+        lesbar=einstellungen.lesbar(einstellungen.GEMINI_SCHLUESSEL),
+        modell_text=current_app.config["GEMINI_MODELL_TEXT"],
+        modell_bild=current_app.config["GEMINI_MODELL_BILD"],
+        min_laenge=MIN_PASSWORTLAENGE,
+    )
+
+
+@haupt.route("/einstellungen/gemini", methods=["POST"])
+@login_required
+def einstellungen_gemini():
+    ziel = url_for("haupt.einstellungen_seite")
+    aktion = request.form.get("aktion", "speichern")
+
+    if aktion == "entfernen":
+        einstellungen.entferne(einstellungen.GEMINI_SCHLUESSEL)
+        # Nach dem Entfernen greift wieder die .env, falls dort etwas steht.
+        # Das muss dastehen, sonst wundert sich später jemand, warum das
+        # Erzeugen noch läuft.
+        if einstellungen.gemini_herkunft() == "env":
+            flash(
+                "Schlüssel entfernt. Es gilt jetzt wieder der aus der .env.",
+                "erfolg",
+            )
+        else:
+            flash("Schlüssel entfernt.", "erfolg")
+        return redirect(ziel)
+
+    if aktion == "pruefen":
+        try:
+            modell = ki.verbindung_pruefen()
+        except ki.KIFehler as fehler:
+            flash(str(fehler), "fehler")
+            return redirect(ziel)
+        flash(f"{modell} hat geantwortet.", "erfolg")
+        return redirect(ziel)
+
+    # Nicht `formular.text`: ein Schlüssel wird eingefügt, und beim Einfügen
+    # kommt gern ein Zeilenumbruch mit. Der fällt beim strip weg, alles
+    # andere bleibt Zeichen für Zeichen stehen.
+    neuer = (request.form.get("schluessel") or "").strip()
+    if not neuer:
+        flash("Da stand nichts drin.", "fehler")
+        return redirect(ziel)
+    if len(neuer) > 200:
+        flash("Das ist zu lang für einen Schlüssel.", "fehler")
+        return redirect(ziel)
+
+    einstellungen.setze(einstellungen.GEMINI_SCHLUESSEL, neuer)
+    current_app.logger.info("Gemini-Schlüssel geändert")
+    flash("Schlüssel gespeichert.", "erfolg")
+    return redirect(ziel)
+
+
+@haupt.route("/einstellungen/passwort", methods=["POST"])
+@login_required
+def einstellungen_passwort():
+    ziel = url_for("haupt.einstellungen_seite")
+
+    alt = request.form.get("alt") or ""
+    neu = request.form.get("neu") or ""
+    noch_mal = request.form.get("noch_mal") or ""
+
+    # Das alte Passwort wird verlangt, obwohl die Sitzung schon angemeldet
+    # ist. Sonst reicht ein offener Browser, um sich dauerhaft einzurichten.
+    if not check_password_hash(current_user.passwort_hash, alt):
+        current_app.logger.warning("Passwortwechsel mit falschem alten Passwort")
+        flash("Das alte Passwort stimmt nicht.", "fehler")
+        return redirect(ziel)
+
+    if neu != noch_mal:
+        flash("Die beiden neuen Passwörter sind nicht gleich.", "fehler")
+        return redirect(ziel)
+
+    if len(neu) < MIN_PASSWORTLAENGE:
+        flash(f"Mindestens {MIN_PASSWORTLAENGE} Zeichen.", "fehler")
+        return redirect(ziel)
+
+    if neu == alt:
+        flash("Das neue Passwort ist das alte.", "fehler")
+        return redirect(ziel)
+
+    nutzer = current_user._get_current_object()
+    passwort_setzen(nutzer, neu)
+    db.session.commit()
+
+    # `passwort_setzen` würfelt den session_token neu und beendet damit alle
+    # Anmeldungen — auch diese hier. Ohne das erneute Anmelden landet man
+    # unmittelbar nach dem Wechsel auf der Startseite und weiß nicht, ob er
+    # geklappt hat.
+    login_user(nutzer, remember=True)
+    current_app.logger.info("Passwort geändert")
+    flash(
+        "Passwort geändert. Anmeldungen auf anderen Geräten sind beendet.",
+        "erfolg",
+    )
+    return redirect(ziel)
+
+
+# --- Erzeugte Bilder ---------------------------------------------------
+
+
+@haupt.route("/medien/<path:pfad>")
+def medien(pfad: str):
+    """Erzeugte und hochgeladene Bilder.
+
+    Auf dem Server liefert nginx diesen Ort direkt aus und diese Funktion
+    wird nie erreicht; sie ist der Weg für die lokale Entwicklung. Bewusst
+    ohne Anmeldung, weil Pinterest Bilder über eine öffentlich erreichbare
+    Adresse holt — dieselbe Entscheidung wie im nginx-Block.
+    """
+    return send_from_directory(current_app.config["UPLOAD_ORDNER"], pfad)

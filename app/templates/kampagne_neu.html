@@ -16,6 +16,13 @@
          value="{{ werte.get('target_url', '') }}"
          placeholder="https://welcometap.de">
 
+  {# Geht wörtlich in die Anfrage an Gemini. Was hier nicht steht, darf im
+     Ergebnis nicht stehen — die Regel dazu baut app/ki.py in die Anfrage
+     ein, hier steht nur das Feld. #}
+  <label for="briefing">Briefing</label>
+  <textarea id="briefing" name="briefing" rows="6" maxlength="4000"
+            placeholder="Was ist das Angebot, für wen, welcher Ton? Was darf auf keinen Fall behauptet werden?">{{ werte.get('briefing', '') }}</textarea>
+
   <label for="status">Status</label>
   <select id="status" name="status">
     <option value="draft" {% if werte.get('status') == 'draft' %}selected{% endif %}>draft</option>

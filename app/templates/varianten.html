@@ -1,0 +1,107 @@
+{% extends "basis.html" %}
+{% block titel %}Varianten — {{ kampagne.name }} — pinario{% endblock %}
+
+{% block inhalt %}
+<p class="brotkrume">
+  <a href="{{ url_for('haupt.uebersicht') }}">Übersicht</a> ›
+  <a href="{{ url_for('haupt.kampagne', kampagne_id=kampagne.id) }}">{{ kampagne.name }}</a>
+</p>
+<h1>Varianten für {{ verbindung.kanal.name }}</h1>
+
+<form method="post" action="{{ url_for('haupt.varianten_erzeugen', verbindung_id=verbindung.id) }}" class="maske eng">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+  <label for="anzahl">Wie viele</label>
+  <input type="number" id="anzahl" name="anzahl" min="1" max="{{ max_varianten }}"
+         value="3" required {% if not kann_erzeugen %}disabled{% endif %}>
+
+  <label class="kasten">
+    <input type="checkbox" name="mit_bild" value="ja" checked
+           {% if not kann_erzeugen %}disabled{% endif %}>
+    Bild dazu erzeugen
+  </label>
+
+  <div class="knopfreihe">
+    <button type="submit" {% if not kann_erzeugen %}disabled{% endif %}>Erzeugen</button>
+  </div>
+
+  {% if not kann_erzeugen %}
+    <p class="hinweis">GEMINI_API_KEY fehlt in der .env.</p>
+  {% elif not kampagne.briefing %}
+    {# Kein Fehler, aber der Unterschied im Ergebnis ist groß genug, dass er
+       vor dem Klick sichtbar sein muss. #}
+    <p class="hinweis">
+      Diese Kampagne hat kein Briefing. Die Vorschläge bleiben dann sehr
+      allgemein.
+      <a href="{{ url_for('haupt.kampagne', kampagne_id=kampagne.id) }}">Nachtragen</a>
+    </p>
+  {% endif %}
+</form>
+
+{% if not gruppen %}
+  <p class="leise">Noch keine Varianten.</p>
+{% endif %}
+
+{% for gruppe in gruppen %}
+  <section class="gruppe">
+    <h2>
+      {{ gruppe.erzeugt_am | datum }}, {{ gruppe.erzeugt_am | uhrzeit }}
+      <span class="leise">{{ gruppe.varianten | length }} Variante(n)</span>
+    </h2>
+
+    {% if gruppe.prompt %}
+      <details class="anfrage">
+        <summary>Anfrage</summary>
+        <pre>{{ gruppe.prompt }}</pre>
+      </details>
+    {% endif %}
+
+    {% for eintrag in gruppe.varianten %}
+      {% set inhalt = eintrag.inhalt %}
+      <article class="variante {{ inhalt.status }}">
+        <form method="post"
+              action="{{ url_for('haupt.variante_aendern', verbindung_id=verbindung.id, inhalt_id=inhalt.id) }}"
+              class="maske">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+          <div class="variantenkopf">
+            <span class="status {{ inhalt.status }}">{{ inhalt.status }}</span>
+            {% if inhalt.quelle == 'ai_generated' %}<span class="leise">erzeugt</span>{% endif %}
+            {% if inhalt.geplant_fuer %}
+              <span class="leise">geplant {{ inhalt.geplant_fuer | datum }}, {{ inhalt.geplant_fuer | uhrzeit }}</span>
+            {% endif %}
+          </div>
+
+          {% if inhalt.file_path %}
+            <img class="vorschau" src="{{ url_for('haupt.medien', pfad=inhalt.file_path) }}"
+                 alt="" loading="lazy">
+          {% endif %}
+
+          <label for="titel-{{ inhalt.id }}">Titel</label>
+          <input type="text" id="titel-{{ inhalt.id }}" name="titel" maxlength="255"
+                 required value="{{ inhalt.title or '' }}">
+
+          <label for="text-{{ inhalt.id }}">
+            Beschreibung
+            <span class="leise">höchstens {{ adapter.max_beschreibung }} Zeichen</span>
+          </label>
+          <textarea id="text-{{ inhalt.id }}" name="beschreibung" rows="4"
+                    maxlength="4000" required>{{ inhalt.description or '' }}</textarea>
+
+          <div class="knopfreihe">
+            <button type="submit" name="aktion" value="speichern">Speichern</button>
+            {% if inhalt.status == 'draft' %}
+              <button type="submit" name="aktion" value="freigeben" class="textknopf">Freigeben</button>
+            {% elif inhalt.status == 'ready' %}
+              <button type="submit" name="aktion" value="zurueckziehen" class="textknopf">Zurückziehen</button>
+            {% endif %}
+            {% if eintrag.loeschbar %}
+              <button type="submit" name="aktion" value="loeschen" class="textknopf gefaehrlich">Löschen</button>
+            {% endif %}
+          </div>
+        </form>
+      </article>
+    {% endfor %}
+  </section>
+{% endfor %}
+{% endblock %}

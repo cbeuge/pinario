@@ -45,10 +45,17 @@ Sonderfall in der Kampagnen-Maske.
   auf dem Server am 03.09.2026 ebenfalls, über die echte Adresse
 * Impressum und Datenschutz unter `/impressum` und `/datenschutz`, Texte aus
   LegalHub (Slug `pinariode`). Öffentlich erreichbar, weil Pinterest beim
-  Anlegen einer App eine Datenschutz-Adresse verlangt. Das Impressum steht
-  seit dem 02.09.2026 vollständig in LegalHub; **die Datenschutzerklärung
-  ist dort noch ein Blindtext** und muss vor der Pinterest-App geschrieben
-  werden
+  Anlegen einer App eine Datenschutz-Adresse verlangt. **Beide Texte stehen
+  seit dem 03.09.2026 vollständig**, die Datenschutzerklärung ist eigens für
+  pinario geschrieben und nicht aus einer anderen Marke kopiert
+* **Varianten erzeugen** über Gemini (`app/ki.py`, Ansicht
+  `/kanal/<id>/varianten`). Je Kampagnenkanal ein Schwung Vorschläge, alle
+  mit derselben `variant_group`, dazu die Anfrage an der Variante. Bearbeiten,
+  freigeben, zurückziehen, löschen. Bilder wahlweise dazu
+* **Einstellungen** unter `/einstellungen`: Gemini-Schlüssel eintragen,
+  prüfen und entfernen, dazu das eigene Passwort ändern
+* `www.pinario.de` leitet per 301 auf die Hauptadresse um, das Zertifikat
+  deckt beide Namen ab
 
 **Eine Regel, die man kennen muss:** eine Kampagne, die schon gepostet hat,
 lässt sich nicht löschen — die Datenbank weist es ab. Die Messreihe ist der
@@ -59,8 +66,9 @@ Docstring von `PostedItem`.
 
 Noch nicht gebaut:
 
-* Content-Erzeugung über Gemini (Text, Bild, später Video)
-* Scheduler fürs zeitversetzte Posten
+* Videos erzeugen. Text und Bild stehen, Video nicht
+* Scheduler fürs zeitversetzte Posten. `content_items.geplant_fuer` ist die
+  Spalte dafür und wird bisher von nichts gefüllt
 * Pinterest wirklich verbinden und posten. Der Adapter kennt die Adressen,
   ist aber **gegen die echte API noch nie gelaufen** — dafür fehlen die
   Zugangsdaten von developers.pinterest.com
@@ -84,6 +92,8 @@ app/
   rechtstext_saeubern.py  Erlaubnisliste für das HTML von dort
   cli.py          `flask passwort`, `flask kanaele-abgleichen`
   formular.py     prüft Eingaben, liefert Sätze statt Ausnahmen
+  ki.py           baut die Anfrage an Gemini und prüft, was zurückkommt
+  einstellungen.py  Werte, die sich im Betrieb ändern, geheime verschlüsselt
   kanaele/        ein Adapter je Plattform
                   basis.py            was ein Kanal können muss
                   pinterest.py        Pinterest API v5
@@ -91,6 +101,8 @@ app/
 marke_quelle/     Vorlage und Werkzeug für die Logo-Dateien
 betrieb/          systemd-Unit und nginx-Konfiguration
 migrations/       Alembic
+pruefe_rechtstext.py  misst den HTML-Säuberer nach (37 Fälle)
+pruefe_ki.py          misst die Anfrage an Gemini nach (28 Fälle)
 ```
 
 ## Lokal starten
@@ -218,6 +230,93 @@ Getrennt davon, und bewusst nicht im Säuberer, werden Quills Leerzeilen
 hintereinander und reißen Löcher zwischen die Abschnitte. Das eine ist
 Sicherheit und darf nichts durchlassen, das andere Darstellung und darf
 nichts wegwerfen, was Text ist.
+
+## Varianten erzeugen
+
+Je Kampagnenkanal gibt es unter `/kanal/<id>/varianten` einen Schwung
+Vorschläge auf einmal. Sie bekommen dieselbe `variant_group`, weil sie
+gegeneinander gemessen werden; einzeln steht dort nur, was von Hand
+dazukommt. Neu erzeugte Varianten stehen auf `draft` und werden von Hand
+freigegeben. Erst `ready` heißt: der Scheduler darf sie nehmen.
+
+**Was in der Anfrage fehlt, denkt sich das Modell aus.** Das ist die eine
+Regel, um die hier alles gebaut ist. Preise, Prozente, Fristen, Garantien,
+Nutzerzahlen, Ortsangaben — wenn so etwas im Ergebnis stehen darf, muss es
+in der Anfrage stehen. Sonst kommt es trotzdem, nur eben erfunden, und ein
+erfundener Preis in einem Pin ist Werbung mit einer falschen Angabe unter
+eigenem Namen.
+
+Deshalb:
+
+* `campaigns.briefing` ist der Ort für die Wahrheit. Was dort steht, geht
+  wörtlich in die Anfrage. Ohne Briefing hätte sie nur Name und Ziel-Link
+* `anfrage_bauen` verbietet ausdrücklich alles darüber hinaus, und sagt bei
+  fehlendem Briefing im Anfragetext selbst, dass es keine Beschreibung gibt.
+  Eine Lücke, die benannt ist, wird seltener gefüllt als eine, die schweigt
+* `content_items.prompt` speichert die Anfrage mit. Die Anwendung existiert,
+  um zu messen, welche Variante zieht; ohne die Frage daneben ist das
+  Ergebnis eine Zahl ohne Bedeutung
+* `affiliate_erlaubt` am Kanal reicht die Google-Regel bis in die Anfrage
+  durch, statt sie als Sonderfall in einer Maske zu wiederholen
+
+`anfrage_bauen` und `variante_pruefen` sind absichtlich reine Funktionen
+ohne Netz und ohne Schlüssel. So lässt sich das Nachdenken prüfen, ohne für
+jede Prüfung zu bezahlen:
+
+```
+venv\Scripts\python.exe pruefe_ki.py
+```
+
+28 Fälle: dass jede Angabe wirklich in der Anfrage landet, dass die Verbote
+drinstehen, dass die Google-Regel nur bei Google auftaucht, und dass zu
+lange Antworten an der Wortgrenze gekürzt werden statt mitten im Wort.
+
+**Ein gescheitertes Bild kostet nicht den ganzen Schwung.** Der Text ist das
+Teure am Vorgang; wenn das Bild in einen Filter läuft, bleibt die Variante
+stehen und sagt es. Nachreichen geht einzeln.
+
+Bilder liegen unter `uploads/erzeugt/` mit gewürfeltem Namen. Nicht aus dem
+Titel gebaut: Pinterest holt Bilder über eine öffentlich erreichbare
+Adresse, ein sprechender Dateiname stünde damit im Netz.
+
+## Einstellungen
+
+`/einstellungen` ist der Ort für Werte, die sich im Betrieb ändern. Die
+`.env` bleibt für alles, was zum Aufsetzen gehört und danach steht:
+Datenbank, `SECRET_KEY`, `TRESOR_SCHLUESSEL`.
+
+**Der Gemini-Schlüssel** lässt sich dort eintragen, prüfen und entfernen.
+Er liegt **verschlüsselt** in der Tabelle `einstellungen`, mit demselben
+Tresor wie die OAuth-Token; wer `TRESOR_SCHLUESSEL` wechselt, muss ihn neu
+eintragen, und die Seite sagt das dann auch. Angezeigt wird er nie ganz,
+nur die ersten und letzten vier Zeichen.
+
+**Die Einstellung schlägt die `.env`.** Wer einen Wert in der Maske setzt,
+will genau den; `GEMINI_API_KEY` in der `.env` ist ab dann nur noch der
+Rückfall für einen frisch aufgesetzten Server. Andersherum wäre die
+Oberfläche eine Maske, die etwas anzeigt, das nicht gilt. Die Seite schreibt
+dazu, woher der Schlüssel gerade kommt — sonst versteht später niemand,
+warum das Erzeugen läuft, obwohl das Feld leer aussieht.
+
+`Verbindung prüfen` macht einen echten, sehr kurzen Aufruf gegen das
+Textmodell. Sinn: ein falscher Schlüssel oder ein falscher Modellname soll
+hier auffallen und nicht erst beim ersten Schwung Varianten.
+
+**Das Passwort** lässt sich dort ebenfalls ändern. Das alte wird verlangt,
+obwohl die Sitzung schon angemeldet ist — sonst reicht ein offener Browser,
+um sich dauerhaft einzurichten. Der Wechsel würfelt `users.session_token`
+neu und beendet damit alle Anmeldungen; die eigene wird direkt danach
+erneuert, sonst landet man unmittelbar nach dem Wechsel auf der Startseite
+und weiß nicht, ob er geklappt hat.
+
+**Danach stimmt `/root/.pinario-login` auf dem Server nicht mehr.** Diese
+Datei ist eine Notiz und keine Quelle; wer das Passwort über die Maske
+ändert, zieht sie von Hand nach oder löscht sie. Der Weg über die
+Kommandozeile bleibt daneben bestehen:
+
+```
+cd /var/www/pinario && sudo -u www-data ./venv/bin/flask --app wsgi passwort
+```
 
 ## Die Marke
 
