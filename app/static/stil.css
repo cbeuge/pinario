@@ -367,3 +367,17 @@ code {
   color: var(--text);
   font: inherit;
 }
+
+/* Zeitplan */
+.status.posting { color: var(--akzent-hell); }
+.marker.warnung { color: var(--rot); }
+/* Der Grund steht unter der Zeile, zu der er gehört, und nicht in einer
+   eigenen Spalte: Fehlermeldungen sind lang und wären dort abgeschnitten. */
+.fehlerzeile td { padding-top: 0; border-top: none; }
+.fehlerzeile code {
+  display: block;
+  color: var(--rot);
+  background: none;
+  padding: 0;
+  font-size: .78rem;
+}

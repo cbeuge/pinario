@@ -36,7 +36,11 @@ from .zeit import jetzt
 # nicht als Enum in der Datenbank: ein neuer Status soll eine Codeänderung
 # sein und keine Migration.
 KAMPAGNE_STATUS = ("draft", "active", "paused")
-INHALT_STATUS = ("draft", "ready", "posted", "failed")
+# "posting" ist der Zustand zwischen Herausnehmen und Antwort der Plattform.
+# Ohne diesen Zwischenschritt müsste ein zweiter Lauf raten, ob ein Eintrag
+# gerade bearbeitet wird oder liegengeblieben ist — und im Zweifel doppelt
+# posten. Wie lange er hängen darf, steht in app/zeitplan.py.
+INHALT_STATUS = ("draft", "ready", "posting", "posted", "failed")
 INHALT_TYP = ("image", "video", "text")
 QUELLE = ("upload", "ai_generated")
 
@@ -251,6 +255,11 @@ class ContentItem(db.Model):
     # nichts, worauf er filtern kann, und zeitversetztes Posten wäre nur eine
     # Absicht ohne Ort.
     geplant_fuer: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Seit wann dieser Eintrag auf "posting" steht. Nur dafür da, einen Lauf
+    # zu erkennen, der zwischen Herausnehmen und Antwort abgebrochen ist:
+    # `geplant_fuer` taugt dazu nicht, weil ein Eintrag auch verspätet
+    # drankommen kann und dann falsch alt aussieht.
+    posten_seit: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=jetzt, nullable=False
     )

@@ -39,6 +39,49 @@ def befehle_registrieren(app: Flask) -> None:
         db.session.commit()
         click.echo(hinweis)
 
+    @app.cli.command("zeitplan")
+    @click.option(
+        "--trocken", is_flag=True,
+        help="Nur sagen, was passieren würde. Fasst nichts an.",
+    )
+    @click.option(
+        "--nur-planen", is_flag=True,
+        help="Termine vergeben, aber nichts posten.",
+    )
+    def zeitplan_befehl(trocken: bool, nur_planen: bool) -> None:
+        """Aufräumen, einplanen, posten.
+
+        Das ist der Befehl, den der systemd-Timer alle fünf Minuten ruft.
+        Von Hand vor allem mit --trocken interessant: dann steht da, was
+        beim nächsten echten Lauf rausginge, ohne dass etwas rausgeht.
+        """
+        from .zeitplan import einplanen, lauf, zurueckholen
+
+        if nur_planen:
+            zurueck = zurueckholen()
+            vergeben = einplanen()
+            click.echo(f"{zurueck} zurückgeholt, {vergeben} Termin(e) vergeben.")
+            return
+
+        bericht = lauf(trocken=trocken)
+        if trocken:
+            click.echo(f"Trocken: {bericht['gepostet']} Beitrag/Beiträge wären dran.")
+        else:
+            click.echo(
+                f"{bericht['zurueckgeholt']} zurückgeholt, "
+                f"{bericht['eingeplant']} eingeplant, "
+                f"{bericht['gepostet']} gepostet, "
+                f"{bericht['gescheitert']} gescheitert."
+            )
+        if bericht["uebersprungen"]:
+            # Kein Fehler, aber der häufigste Grund dafür, dass nichts
+            # passiert. Muss dastehen, sonst sucht man im Code.
+            kanaele = ", ".join(sorted(set(bericht["kein_konto"])))
+            click.echo(
+                f"{bericht['uebersprungen']} übersprungen, weil kein Konto "
+                f"verbunden ist ({kanaele})."
+            )
+
     @app.cli.command("kanaele-abgleichen")
     def kanaele_abgleichen() -> None:
         """Trägt fehlende Kanäle in `channels` nach.

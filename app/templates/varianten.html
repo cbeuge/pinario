@@ -26,7 +26,10 @@
   </div>
 
   {% if not kann_erzeugen %}
-    <p class="hinweis">GEMINI_API_KEY fehlt in der .env.</p>
+    <p class="hinweis">
+      Kein Gemini-Schlüssel hinterlegt.
+      <a href="{{ url_for('haupt.einstellungen_seite') }}">Eintragen</a>
+    </p>
   {% elif not kampagne.briefing %}
     {# Kein Fehler, aber der Unterschied im Ergebnis ist groß genug, dass er
        vor dem Klick sichtbar sein muss. #}
@@ -67,6 +70,7 @@
           <div class="variantenkopf">
             <span class="status {{ inhalt.status }}">{{ inhalt.status }}</span>
             {% if inhalt.quelle == 'ai_generated' %}<span class="leise">erzeugt</span>{% endif %}
+            {% if not eintrag.passt %}<span class="marker warnung">Bild fehlt</span>{% endif %}
             {% if inhalt.geplant_fuer %}
               <span class="leise">geplant {{ inhalt.geplant_fuer | datum }}, {{ inhalt.geplant_fuer | uhrzeit }}</span>
             {% endif %}

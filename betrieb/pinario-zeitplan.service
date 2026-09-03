@@ -1,0 +1,40 @@
+# Ein Lauf des Zeitplans: aufräumen, einplanen, posten.
+#
+# Auf dem Server als /etc/systemd/system/pinario-zeitplan.service, zusammen
+# mit der .timer-Datei daneben:
+#
+#   cp /var/www/pinario/betrieb/pinario-zeitplan.* /etc/systemd/system/
+#   systemctl daemon-reload
+#   systemctl enable --now pinario-zeitplan.timer
+#
+# **Warum ein Timer und kein Scheduler im Webserver:** gunicorn startet zwei
+# Worker. Ein Scheduler im Prozess liefe damit zweimal und würde jeden
+# Beitrag doppelt posten. Ein oneshot-Dienst läuft genau einmal, und systemd
+# startet ihn nicht neu, solange der vorige noch läuft.
+
+[Unit]
+Description=pinario Zeitplan
+After=network.target postgresql.service
+
+[Service]
+Type=oneshot
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/pinario
+Environment="PATH=/var/www/pinario/venv/bin"
+Environment=FLASK_APP=wsgi
+ExecStart=/var/www/pinario/venv/bin/flask zeitplan
+
+# Ein hängender Aufruf darf nicht bis zum nächsten Lauf stehenbleiben. Nach
+# dem Abbruch bleiben Einträge auf "posting" liegen; der nächste Lauf holt
+# sie nach HAENGT_AB zurück, siehe app/zeitplan.py.
+TimeoutStartSec=600
+
+# Dieselbe Absicherung wie der Dienst. Dieselben drei Orte, weil derselbe
+# Code läuft: Bilder liegen unter uploads, das Protokoll unter logs, die
+# Rechtstexte im Cache.
+ProtectSystem=strict
+ReadWritePaths=/var/www/pinario/uploads /var/www/pinario/logs /var/www/pinario/cache
+PrivateTmp=true
+NoNewPrivileges=true
+ProtectHome=true

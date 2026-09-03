@@ -1,0 +1,86 @@
+{% extends "basis.html" %}
+{% block titel %}Zeitplan — pinario{% endblock %}
+
+{% block inhalt %}
+<h1>Zeitplan</h1>
+
+{% if ohne_konto %}
+  <p class="hinweis">
+    Kein Konto verbunden: {{ ohne_konto | join(', ') }}. Eingeplante Beiträge
+    bleiben stehen, bis das erledigt ist.
+  </p>
+{% endif %}
+
+<h2>Steht an</h2>
+
+{% if not ansteht %}
+  <p class="leise">Nichts eingeplant.</p>
+{% else %}
+  <table class="liste">
+    <thead>
+      <tr>
+        <th>Wann</th>
+        <th>Kampagne</th>
+        <th>Kanal</th>
+        <th>Titel</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for eintrag in ansteht %}
+        <tr>
+          <td>{{ eintrag.geplant_fuer | datum }}, {{ eintrag.geplant_fuer | uhrzeit }}</td>
+          <td>
+            <a href="{{ url_for('haupt.kampagne', kampagne_id=eintrag.kampagnenkanal.campaign_id) }}">
+              {{ eintrag.kampagnenkanal.kampagne.name }}
+            </a>
+          </td>
+          <td>{{ eintrag.kampagnenkanal.kanal.name }}</td>
+          <td>
+            <a href="{{ url_for('haupt.varianten', verbindung_id=eintrag.campaign_channel_id) }}">
+              {{ eintrag.title or '—' }}
+            </a>
+          </td>
+          <td><span class="status {{ eintrag.status }}">{{ eintrag.status }}</span></td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endif %}
+
+<h2>Zuletzt rausgegangen</h2>
+
+{% if not zuletzt %}
+  <p class="leise">Noch nichts veröffentlicht.</p>
+{% else %}
+  <table class="liste">
+    <thead>
+      <tr>
+        <th>Wann</th>
+        <th>Kampagne</th>
+        <th>Titel</th>
+        <th></th>
+        <th class="zahl">Aufrufe</th>
+        <th class="zahl">Klicks</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for eintrag in zuletzt %}
+        <tr>
+          <td>{{ eintrag.posted_at | datum }}, {{ eintrag.posted_at | uhrzeit }}</td>
+          <td>{{ eintrag.inhalt.kampagnenkanal.kampagne.name }}</td>
+          <td>{{ eintrag.inhalt.title or '—' }}</td>
+          <td><span class="status {{ eintrag.status }}">{{ eintrag.status }}</span></td>
+          <td class="zahl">{{ eintrag.impressions }}</td>
+          <td class="zahl">{{ eintrag.clicks }}</td>
+        </tr>
+        {% if eintrag.fehler %}
+          <tr class="fehlerzeile">
+            <td colspan="6"><code>{{ eintrag.fehler }}</code></td>
+          </tr>
+        {% endif %}
+      {% endfor %}
+    </tbody>
+  </table>
+{% endif %}
+{% endblock %}

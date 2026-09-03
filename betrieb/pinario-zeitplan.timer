@@ -1,0 +1,22 @@
+# Alle fünf Minuten. Die Termine im Zeitplan liegen Stunden auseinander,
+# fünf Minuten Ungenauigkeit fallen also nicht auf — und ein engerer Takt
+# brächte nichts außer Last.
+#
+# Persistent=true: war der Server aus, wird der verpasste Lauf einmal
+# nachgeholt. Das ist hier richtig, weil Nachzügler ohnehin abgearbeitet
+# werden sollen. Doppelt gepostet wird dabei nichts: der Zustand steht in
+# der Datenbank und nicht am Timer.
+#
+# RandomizedDelaySec: sonst starten alle Timer der Maschine gleichzeitig zur
+# vollen Minute.
+
+[Unit]
+Description=pinario Zeitplan alle fuenf Minuten
+
+[Timer]
+OnCalendar=*:0/5
+Persistent=true
+RandomizedDelaySec=30
+
+[Install]
+WantedBy=timers.target

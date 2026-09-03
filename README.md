@@ -55,6 +55,8 @@ Sonderfall in der Kampagnen-Maske.
 * **Einstellungen** unter `/einstellungen`: Gemini-Schlüssel eintragen,
   prüfen und entfernen, die Zugangsdaten aller fünf Kanäle, dazu das eigene
   Passwort ändern
+* **Zeitplan** (`app/zeitplan.py`, Ansicht `/zeitplan`): freigegebene
+  Varianten bekommen Termine, ein systemd-Timer schickt sie raus
 * `www.pinario.de` leitet per 301 auf die Hauptadresse um, das Zertifikat
   deckt beide Namen ab
 
@@ -68,8 +70,6 @@ Docstring von `PostedItem`.
 Noch nicht gebaut:
 
 * Videos erzeugen. Text und Bild stehen, Video nicht
-* Scheduler fürs zeitversetzte Posten. `content_items.geplant_fuer` ist die
-  Spalte dafür und wird bisher von nichts gefüllt
 * Pinterest wirklich verbinden und posten. Der Adapter kennt die Adressen,
   ist aber **gegen die echte API noch nie gelaufen** — dafür fehlen die
   Zugangsdaten von developers.pinterest.com
@@ -94,6 +94,7 @@ app/
   cli.py          `flask passwort`, `flask kanaele-abgleichen`
   formular.py     prüft Eingaben, liefert Sätze statt Ausnahmen
   ki.py           baut die Anfrage an Gemini und prüft, was zurückkommt
+  zeitplan.py     Termine vergeben und fällige Beiträge rausschicken
   einstellungen.py  Werte, die sich im Betrieb ändern, geheime verschlüsselt
   kanaele/        ein Adapter je Plattform
                   basis.py            was ein Kanal können muss
@@ -104,6 +105,7 @@ betrieb/          systemd-Unit und nginx-Konfiguration
 migrations/       Alembic
 pruefe_rechtstext.py  misst den HTML-Säuberer nach (37 Fälle)
 pruefe_ki.py          misst die Anfrage an Gemini nach (28 Fälle)
+pruefe_zeitplan.py    misst das Rechnen der Termine nach (20 Fälle)
 ```
 
 ## Lokal starten
@@ -362,6 +364,83 @@ Kommandozeile bleibt daneben bestehen:
 ```
 cd /var/www/pinario && sudo -u www-data ./venv/bin/flask --app wsgi passwort
 ```
+
+## Zeitplan
+
+Zwei Schritte, absichtlich getrennt. **Einplanen** vergibt `geplant_fuer` an
+freigegebene Varianten und rechnet dabei nur mit Zeiten und der Datenbank.
+**Posten** nimmt fällige Einträge und schickt sie über den Adapter raus;
+erst hier kann etwas schiefgehen, das nicht in unserer Hand liegt.
+
+Beides zusammen ist ein Lauf:
+
+```
+venv\Scripts\python.exe -m flask --app wsgi zeitplan --trocken
+```
+
+`--trocken` sagt nur, was rausginge, und fasst nichts an. Ohne die Option
+läuft es echt, mit `--nur-planen` werden nur Termine vergeben.
+
+**Der Scheduler läuft nicht im Webserver.** gunicorn startet zwei Worker;
+ein Scheduler im Prozess liefe damit zweimal und würde jeden Beitrag doppelt
+posten. Ausgelöst wird über einen systemd-Timer alle fünf Minuten:
+
+```
+cp /var/www/pinario/betrieb/pinario-zeitplan.* /etc/systemd/system/
+systemctl daemon-reload
+systemctl enable --now pinario-zeitplan.timer
+```
+
+### Vier Regeln, die den Unterschied machen
+
+**Ein Kanal ohne verbundenes Konto wird übersprungen, nicht versucht.**
+Sonst brennt der erste Lauf alle eingeplanten Varianten auf `failed`, bevor
+Pinterest überhaupt verbunden ist — und wer den Fehler danach behebt, hat
+trotzdem einen Haufen Leichen in der Messreihe. Auf `/zeitplan` steht
+deshalb oben, welcher Kanal noch kein Konto hat.
+
+**Zwischen Herausnehmen und Antwort steht der Eintrag auf `posting`.** Der
+Übergang wird sofort committet; ab da nimmt kein zweiter Lauf ihn mehr.
+Bricht der Lauf danach ab, holt der nächste ihn nach `HAENGT_AB` (30
+Minuten) zurück auf `ready`. Dafür gibt es `content_items.posten_seit` —
+`geplant_fuer` taugt nicht dazu, weil ein Eintrag auch verspätet drankommen
+kann und dann falsch alt aussieht.
+
+**Was der Kanal nicht annimmt, wird gar nicht erst eingeplant.** Ein Pin
+braucht ein Bild; eine Variante ohne ist dort kein gescheiterter Versuch,
+sondern einer, der nie hätte stattfinden dürfen. In der Varianten-Ansicht
+steht an solchen Einträgen `Bild fehlt`.
+
+**Ein Fehler nimmt nie den ganzen Lauf mit.** Der Aufruf des Adapters ist
+breit abgesichert, der Grund landet als Text in `posted_items.fehler` und
+ist auf `/zeitplan` zu lesen. Sonst verschluckt ein einzelner Fehlschlag die
+übrigen Beiträge des Tages.
+
+### Wie die Termine liegen
+
+Gleichmäßig vom Beginn des Fensters aus, nicht über das ganze Fenster
+gestreckt: bei drei Beiträgen zwischen 09:00 und 21:00 sind das 09:00, 13:00
+und 17:00. Der Rest bleibt Puffer, wenn ein Lauf ausfällt und Nachzügler
+abgearbeitet werden. **Bewusst ohne Zufall** — etwas Streuung sähe
+menschlicher aus, macht aber jede Prüfung zur Glücksfrage und jeden
+Fehlerbericht unwiederholbar.
+
+Sind mehrere Boards eingetragen, gehen die Beiträge reihum darauf, nach der
+Zahl der bisherigen Veröffentlichungen. Deterministisch, damit sich ein
+Ergebnis später nachvollziehen lässt.
+
+Gerechnet wird über echte Zeitpunkte mit Zeitzone, nie über nackte
+Uhrzeiten. `pruefe_zeitplan.py` misst genau das nach, inklusive der beiden
+Umstellungstage:
+
+```
+venv\Scripts\python.exe pruefe_zeitplan.py
+```
+
+Das Verhalten gegen die Datenbank — kein doppeltes Posten, Überspringen
+ohne Konto, Zurückholen hängengebliebener Einträge, Board-Reihum — hängt
+an Postgres und ist am 03.09.2026 mit einer Wegwerf-Kampagne und einem
+untergeschobenen Adapter geprüft worden (31 Fälle).
 
 ## Die Marke
 

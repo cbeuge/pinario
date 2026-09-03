@@ -26,6 +26,7 @@ from .kanaele import AKTIV, BEKANNT, ZUGANGSFELDER, kanal, rueckruf_pfad
 from .models import (
     KAMPAGNE_STATUS,
     QUELLE,
+    Account,
     Campaign,
     CampaignChannel,
     Channel,
@@ -331,7 +332,7 @@ def _verbindung_holen(verbindung_id: int) -> CampaignChannel:
     return verbindung
 
 
-def _gruppen(verbindung: CampaignChannel) -> list[dict]:
+def _gruppen(verbindung: CampaignChannel, adapter) -> list[dict]:
     """Varianten nach `variant_group` gebündelt, neueste Gruppe zuerst.
 
     Zusammen erzeugte Varianten werden gegeneinander gemessen, also gehören
@@ -361,9 +362,14 @@ def _gruppen(verbindung: CampaignChannel) -> list[dict]:
         if schluessel not in gebuendelt:
             gebuendelt[schluessel] = []
             reihenfolge.append(schluessel)
-        gebuendelt[schluessel].append(
-            {"inhalt": inhalt, "loeschbar": inhalt.id not in gepostet}
-        )
+        gebuendelt[schluessel].append({
+            "inhalt": inhalt,
+            "loeschbar": inhalt.id not in gepostet,
+            # Ein Pin braucht ein Bild. Eine Variante ohne wird gar nicht
+            # erst eingeplant — und das muss man sehen, bevor man sie
+            # freigibt und sich wundert, dass nie etwas passiert.
+            "passt": inhalt.type in adapter.typen,
+        })
 
     return [
         {
@@ -388,7 +394,7 @@ def varianten(verbindung_id: int):
         verbindung=verbindung,
         kampagne=verbindung.kampagne,
         adapter=adapter,
-        gruppen=_gruppen(verbindung),
+        gruppen=_gruppen(verbindung, adapter),
         max_varianten=ki.MAX_VARIANTEN,
         kann_erzeugen=bool(einstellungen.gemini_herkunft()),
     )
@@ -536,6 +542,50 @@ def variante_aendern(verbindung_id: int, inhalt_id: int):
     db.session.commit()
     flash("Gespeichert.", "erfolg")
     return redirect(ziel)
+
+
+# --- Zeitplan ----------------------------------------------------------
+
+
+@haupt.route("/zeitplan")
+@login_required
+def zeitplan_seite():
+    """Was ansteht und was zuletzt rausging.
+
+    Zwei Listen auf einer Seite, weil man sie zusammen liest: was kommt, und
+    ob das, was kam, angekommen ist.
+    """
+    ansteht = db.session.scalars(
+        select(ContentItem)
+        .where(
+            ContentItem.geplant_fuer.is_not(None),
+            ContentItem.status.in_(("ready", "posting")),
+        )
+        .order_by(ContentItem.geplant_fuer)
+        .limit(50)
+    ).all()
+
+    zuletzt = db.session.scalars(
+        select(PostedItem).order_by(PostedItem.posted_at.desc()).limit(30)
+    ).all()
+
+    # Wenn nichts rausgeht, ist der Grund fast immer derselbe. Er gehört auf
+    # die Seite, sonst sucht man ihn im Code.
+    ohne_konto = [
+        eintrag.name
+        for eintrag in db.session.scalars(select(Channel).order_by(Channel.id))
+        if eintrag.key in AKTIV
+        and not db.session.scalar(
+            select(func.count(Account.id)).where(Account.channel_id == eintrag.id)
+        )
+    ]
+
+    return render_template(
+        "zeitplan.html",
+        ansteht=ansteht,
+        zuletzt=zuletzt,
+        ohne_konto=ohne_konto,
+    )
 
 
 # --- Einstellungen -----------------------------------------------------
