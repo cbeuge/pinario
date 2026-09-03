@@ -47,11 +47,16 @@ class Pinterest(Kanal):
         )
 
     def anmelde_adresse(self, zustand: str) -> str:
-        app_id = current_app.config["PINTEREST_APP_ID"]
+        # Import in der Funktion: `einstellungen` liest umgekehrt das
+        # Verzeichnis der Kanäle, und oben im Modul wäre das ein Kreis.
+        from ..einstellungen import kanal_wert
+
+        app_id = kanal_wert("pinterest", "app_id")
         if not app_id:
             raise KanalFehler(
-                "PINTEREST_APP_ID fehlt in der .env. Die App wird unter "
-                "developers.pinterest.com angelegt."
+                "Für Pinterest ist keine App-ID hinterlegt. Einzutragen unter "
+                "Einstellungen; die App wird unter developers.pinterest.com "
+                "angelegt."
             )
         return ANMELDUNG + "?" + urlencode({
             "client_id": app_id,

@@ -14,7 +14,7 @@ dahin führt jede Auswahl nur zu einem 403. Das ist kein Versehen, sondern
 der Unterschied zwischen "gebaut" und "benutzbar".
 """
 
-from .basis import Kanal, KanalFehler
+from .basis import Kanal, KanalFehler, Zugangsfeld
 from .google_business import GoogleBusiness
 from .pinterest import Pinterest
 
@@ -37,10 +37,73 @@ ALLE = (
 )
 
 
+# Was jede Plattform aus ihrem Entwicklerbereich verlangt, damit die
+# Anwendung sich dort überhaupt vorstellen darf. **Für alle fünf Kanäle**,
+# nicht nur für die mit Adapter: die Angaben lassen sich eintragen, bevor
+# der Adapter da ist, und dann ist beim Bauen schon alles hinterlegt.
+#
+# Die Liste steht hier und nicht in den einzelnen Adaptern, weil sie auch
+# für die Kanäle gebraucht wird, für die es noch keine Datei gibt. Ein
+# Adapter holt seine Werte über `einstellungen.kanal_wert`, nie direkt aus
+# der Konfiguration.
+#
+# **`name` darf sich nicht mehr ändern**, daraus wird der Schlüssel in der
+# Tabelle `einstellungen` gebaut. Ein neuer Name heißt: der alte Wert ist
+# nicht weg, aber niemand findet ihn mehr.
+ZUGANGSFELDER: dict[str, tuple[Zugangsfeld, ...]] = {
+    "pinterest": (
+        Zugangsfeld("app_id", "App-ID"),
+        Zugangsfeld("app_secret", "App-Secret", geheim=True),
+    ),
+    "google_business": (
+        Zugangsfeld("client_id", "Client-ID"),
+        Zugangsfeld("client_secret", "Client-Secret", geheim=True),
+    ),
+    # Instagram und Facebook laufen beide über eine App im Meta-Entwickler-
+    # bereich, und meistens ist es dieselbe. Trotzdem zwei getrennte Paare:
+    # eine geteilte Zeile wäre eine Annahme über Metas Kontenlandschaft, die
+    # heute stimmt und in zwei Jahren vielleicht nicht mehr. Zweimal
+    # denselben Wert einzutragen kostet eine Minute, das Auseinandernehmen
+    # später eine Migration.
+    "instagram": (
+        Zugangsfeld("app_id", "Meta-App-ID"),
+        Zugangsfeld("app_secret", "App-Secret", geheim=True),
+    ),
+    "facebook": (
+        Zugangsfeld("app_id", "Meta-App-ID"),
+        Zugangsfeld("app_secret", "App-Secret", geheim=True),
+    ),
+    "x": (
+        Zugangsfeld("client_id", "Client-ID"),
+        Zugangsfeld("client_secret", "Client-Secret", geheim=True),
+    ),
+}
+
+
+def rueckruf_pfad(key: str) -> str:
+    """Der Pfad, an den die Plattform nach dem Verbinden zurückschickt.
+
+    Einheitlich gebaut, damit die Adresse schon feststeht, bevor es den
+    Adapter gibt: sie muss im Entwicklerbereich der Plattform **zeichengenau**
+    eingetragen sein, und das macht man dort einmal und nicht zweimal.
+    """
+    return f"/kanaele/{key}/rueckruf"
+
+
 def kanal(key: str) -> Kanal:
     if key not in BEKANNT:
         raise KanalFehler(f"Für '{key}' gibt es noch keinen Adapter.")
     return BEKANNT[key]
 
 
-__all__ = ["AKTIV", "ALLE", "BEKANNT", "Kanal", "KanalFehler", "kanal"]
+__all__ = [
+    "AKTIV",
+    "ALLE",
+    "BEKANNT",
+    "ZUGANGSFELDER",
+    "Kanal",
+    "KanalFehler",
+    "Zugangsfeld",
+    "kanal",
+    "rueckruf_pfad",
+]

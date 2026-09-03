@@ -30,6 +30,28 @@ class Ablage:
     name: str
 
 
+@dataclass(frozen=True)
+class Zugangsfeld:
+    """Ein Feld, das eine Plattform von ihrer eigenen App-Verwaltung verlangt.
+
+    Nicht der Zugang zu einem Konto — das ist OAuth und landet in `accounts`.
+    Gemeint sind die Angaben zur *Anwendung*: App-ID und Secret aus dem
+    Entwicklerbereich der Plattform. Sie stehen einmal da und ändern sich
+    fast nie, gehören aber trotzdem in die Oberfläche und nicht in die .env,
+    weil sonst jeder Wechsel eine Anmeldung per ssh braucht.
+
+    `name` ist der Teil, aus dem der Einstellungs-Schlüssel gebaut wird, und
+    darf sich deshalb nicht mehr ändern; `beschriftung` heißt so, wie die
+    Plattform es in ihrem eigenen Entwicklerbereich nennt. Die beiden sind
+    absichtlich getrennt: Pinterest sagt „App-ID", Google sagt „Client-ID",
+    und wer zwischen zwei Fenstern sucht, will dasselbe Wort lesen.
+    """
+
+    name: str
+    beschriftung: str
+    geheim: bool = False
+
+
 @dataclass
 class Veroeffentlichung:
     """Antwort der Plattform auf einen erfolgreichen Beitrag."""

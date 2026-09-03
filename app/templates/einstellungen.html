@@ -4,6 +4,8 @@
 {% block inhalt %}
 <h1>Einstellungen</h1>
 
+<h2>Inhalte</h2>
+
 <section class="kanalkasten {{ 'an' if herkunft else '' }}">
   <h3>
     Gemini
@@ -56,6 +58,49 @@
     Beide stehen in der .env.
   </p>
 </section>
+
+<h2>Kanäle</h2>
+
+{% for zeile in kanaele %}
+  <section class="kanalkasten {{ 'an' if zeile.vollstaendig else '' }}">
+    <h3>
+      {{ zeile.kanal.name }}
+      <span class="marker {{ 'still' if zeile.zustand != 'vollständig' else '' }}">{{ zeile.zustand }}</span>
+    </h3>
+
+    <p class="leise">Rückruf-Adresse: <code>{{ zeile.rueckruf }}</code></p>
+
+    <form method="post" action="{{ url_for('haupt.einstellungen_kanal', kanal_key=zeile.kanal.key) }}" class="maske eng">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      {% for eintrag in zeile.felder %}
+        <label for="{{ zeile.kanal.key }}-{{ eintrag.name }}">
+          {{ eintrag.feld.beschriftung }}
+          {% if not eintrag.lesbar %}
+            <span class="leise">nicht mehr lesbar, neu eintragen</span>
+          {% elif eintrag.herkunft == 'einstellung' %}
+            <span class="leise"><code>{{ eintrag.anzeige }}</code></span>
+          {% elif eintrag.herkunft == 'env' %}
+            <span class="leise">aus der .env</span>
+          {% endif %}
+        </label>
+        <input type="{{ 'password' if eintrag.feld.geheim else 'text' }}"
+               id="{{ zeile.kanal.key }}-{{ eintrag.name }}" name="{{ eintrag.name }}"
+               maxlength="200" autocomplete="off" spellcheck="false"
+               {% if eintrag.herkunft %}placeholder="unverändert lassen"{% endif %}>
+      {% endfor %}
+
+      <div class="knopfreihe">
+        <button type="submit">Speichern</button>
+        {% if zeile.felder | selectattr('herkunft', 'equalto', 'einstellung') | list %}
+          <button type="submit" name="aktion" value="entfernen" class="textknopf gefaehrlich">Entfernen</button>
+        {% endif %}
+      </div>
+    </form>
+  </section>
+{% endfor %}
+
+<h2>Zugang</h2>
 
 <section class="kanalkasten">
   <h3>Passwort</h3>

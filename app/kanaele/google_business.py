@@ -77,10 +77,14 @@ class GoogleBusiness(Kanal):
         )
 
     def anmelde_adresse(self, zustand: str) -> str:
-        kennung = current_app.config["GOOGLE_CLIENT_ID"]
+        # Import in der Funktion, siehe die Anmerkung im Pinterest-Adapter.
+        from ..einstellungen import kanal_wert
+
+        kennung = kanal_wert("google_business", "client_id")
         if not kennung:
             raise KanalFehler(
-                "GOOGLE_CLIENT_ID fehlt in der .env. Das Projekt wird in der "
+                "Für Google Business Profile ist keine Client-ID hinterlegt. "
+                "Einzutragen unter Einstellungen; das Projekt wird in der "
                 "Google Cloud Console angelegt, danach muss der Zugang zu den "
                 "Business-Profile-APIs zusätzlich bei Google beantragt werden."
             )

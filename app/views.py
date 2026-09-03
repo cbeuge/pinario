@@ -22,7 +22,7 @@ from werkzeug.security import check_password_hash
 from . import einstellungen, formular, ki
 from .auth import MIN_PASSWORTLAENGE, passwort_setzen
 from .extensions import db
-from .kanaele import AKTIV, BEKANNT, kanal
+from .kanaele import AKTIV, BEKANNT, ZUGANGSFELDER, kanal, rueckruf_pfad
 from .models import (
     KAMPAGNE_STATUS,
     QUELLE,
@@ -541,6 +541,67 @@ def variante_aendern(verbindung_id: int, inhalt_id: int):
 # --- Einstellungen -----------------------------------------------------
 
 
+def _kanal_zeilen() -> list[dict]:
+    """Alle Kanäle mit ihren Zugangsfeldern, in der Reihenfolge der Tabelle.
+
+    Auch die ohne Adapter. Die Zugangsdaten lassen sich eintragen, bevor es
+    den Adapter gibt, und dann ist beim Bauen schon alles hinterlegt. Damit
+    daraus kein falscher Eindruck wird, steht an jedem Kanal, woran es noch
+    hängt: fehlender Adapter, fehlende Freischaltung, fehlende Daten.
+    """
+    wurzel = request.url_root.rstrip("/")
+    zeilen = []
+
+    for eintrag in db.session.scalars(select(Channel).order_by(Channel.id)):
+        felder = [
+            {
+                "feld": feld,
+                "name": feld.name,
+                "herkunft": einstellungen.kanal_herkunft(eintrag.key, feld.name),
+                # Nur das Secret wird verdeckt. Eine App-ID steht ohnehin
+                # im Entwicklerbereich der Plattform und ist beim Abgleichen
+                # nützlicher, wenn man sie ganz sieht.
+                "anzeige": (
+                    einstellungen.verdeckt(
+                        einstellungen.kanal_wert(eintrag.key, feld.name)
+                    )
+                    if feld.geheim
+                    else einstellungen.kanal_wert(eintrag.key, feld.name)
+                ),
+                "lesbar": einstellungen.lesbar(
+                    einstellungen.kanal_name(eintrag.key, feld.name)
+                ),
+            }
+            for feld in ZUGANGSFELDER.get(eintrag.key, ())
+        ]
+
+        vollstaendig = einstellungen.kanal_vollstaendig(eintrag.key)
+        if eintrag.key not in BEKANNT:
+            zustand = "kein Adapter"
+        elif eintrag.key not in AKTIV:
+            zustand = "Freischaltung fehlt"
+        elif not vollstaendig:
+            zustand = "Zugangsdaten fehlen"
+        else:
+            # Bewusst nicht "bereit": vollstaendig heisst, dass die Angaben
+            # da sind, nicht dass schon jemals etwas darueber gepostet
+            # wurde. Bei Pinterest ist der Adapter gegen die echte API noch
+            # nie gelaufen.
+            zustand = "vollständig"
+
+        zeilen.append({
+            "kanal": eintrag,
+            "felder": felder,
+            "zustand": zustand,
+            "vollstaendig": vollstaendig,
+            # Muss im Entwicklerbereich der Plattform zeichengenau stehen.
+            # Deshalb hier ausgeschrieben statt in einer Anleitung.
+            "rueckruf": wurzel + rueckruf_pfad(eintrag.key),
+        })
+
+    return zeilen
+
+
 @haupt.route("/einstellungen")
 @login_required
 def einstellungen_seite():
@@ -552,8 +613,48 @@ def einstellungen_seite():
         lesbar=einstellungen.lesbar(einstellungen.GEMINI_SCHLUESSEL),
         modell_text=current_app.config["GEMINI_MODELL_TEXT"],
         modell_bild=current_app.config["GEMINI_MODELL_BILD"],
+        kanaele=_kanal_zeilen(),
         min_laenge=MIN_PASSWORTLAENGE,
     )
+
+
+@haupt.route("/einstellungen/kanal/<kanal_key>", methods=["POST"])
+@login_required
+def einstellungen_kanal(kanal_key: str):
+    ziel = url_for("haupt.einstellungen_seite")
+    felder = ZUGANGSFELDER.get(kanal_key)
+    if not felder:
+        abort(404)
+
+    if request.form.get("aktion") == "entfernen":
+        einstellungen.kanal_entferne(kanal_key)
+        current_app.logger.info("Zugangsdaten %s entfernt", kanal_key)
+        flash("Zugangsdaten entfernt.", "erfolg")
+        return redirect(ziel)
+
+    # Leere Felder lassen den gespeicherten Wert stehen. Sonst müsste man
+    # das Secret jedes Mal neu eintippen, nur weil die App-ID sich geändert
+    # hat — und angezeigt wird es ja bewusst nicht.
+    geaendert = 0
+    for feld in felder:
+        wert = (request.form.get(feld.name) or "").strip()
+        if not wert:
+            continue
+        if len(wert) > 200:
+            flash(f"{feld.beschriftung} ist zu lang.", "fehler")
+            return redirect(ziel)
+        einstellungen.setze(
+            einstellungen.kanal_name(kanal_key, feld.name), wert
+        )
+        geaendert += 1
+
+    if not geaendert:
+        flash("Da stand nichts drin.", "fehler")
+        return redirect(ziel)
+
+    current_app.logger.info("Zugangsdaten %s geändert", kanal_key)
+    flash("Gespeichert.", "erfolg")
+    return redirect(ziel)
 
 
 @haupt.route("/einstellungen/gemini", methods=["POST"])

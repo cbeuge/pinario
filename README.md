@@ -53,7 +53,8 @@ Sonderfall in der Kampagnen-Maske.
   mit derselben `variant_group`, dazu die Anfrage an der Variante. Bearbeiten,
   freigeben, zurückziehen, löschen. Bilder wahlweise dazu
 * **Einstellungen** unter `/einstellungen`: Gemini-Schlüssel eintragen,
-  prüfen und entfernen, dazu das eigene Passwort ändern
+  prüfen und entfernen, die Zugangsdaten aller fünf Kanäle, dazu das eigene
+  Passwort ändern
 * `www.pinario.de` leitet per 301 auf die Hauptadresse um, das Zertifikat
   deckt beide Namen ab
 
@@ -298,9 +299,53 @@ Oberfläche eine Maske, die etwas anzeigt, das nicht gilt. Die Seite schreibt
 dazu, woher der Schlüssel gerade kommt — sonst versteht später niemand,
 warum das Erzeugen läuft, obwohl das Feld leer aussieht.
 
+Welche Werte verschlüsselt abgelegt werden, leitet `ist_geheim` aus dem
+Verzeichnis der Kanäle ab statt aus einer zweiten Liste von Hand. Eine
+zweite Liste würde beim nächsten Kanal vergessen, und das Ergebnis wäre ein
+Secret im Klartext in jeder Sicherung.
+
 `Verbindung prüfen` macht einen echten, sehr kurzen Aufruf gegen das
 Textmodell. Sinn: ein falscher Schlüssel oder ein falscher Modellname soll
 hier auffallen und nicht erst beim ersten Schwung Varianten.
+
+**Die Zugangsdaten der Kanäle** stehen dort ebenfalls, und zwar für **alle
+fünf** — auch für Instagram, Facebook und X, für die es noch keinen Adapter
+gibt. Sie lassen sich eintragen, bevor der Adapter da ist; dann ist beim
+Bauen schon alles hinterlegt. Damit daraus kein falscher Eindruck wird,
+steht an jedem Kanal, woran es hängt: `kein Adapter`, `Freischaltung fehlt`,
+`Zugangsdaten fehlen` oder `vollständig`. **`vollständig` heißt nur, dass
+die Angaben da sind**, nicht dass jemals etwas darüber gepostet wurde.
+
+Gemeint sind die Angaben zur *Anwendung* (App-ID und Secret aus dem
+Entwicklerbereich der Plattform), nicht der Zugang zu einem Konto — der
+läuft über OAuth und landet in `accounts`. Welche Felder eine Plattform
+verlangt, steht in `ZUGANGSFELDER` in `app/kanaele/__init__.py`, an einer
+Stelle für alle Kanäle. **Der `name` eines Feldes darf sich nicht mehr
+ändern**, daraus wird der Schlüssel in der Tabelle gebaut.
+
+Drei Dinge, die dabei absichtlich so sind:
+
+* **Ein leeres Feld lässt den gespeicherten Wert stehen.** Sonst müsste man
+  das Secret jedes Mal neu eintippen, nur weil die App-ID sich geändert hat
+  — und angezeigt wird es ja bewusst nicht.
+* **Nur das Secret wird verdeckt.** Eine App-ID steht ohnehin offen im
+  Entwicklerbereich der Plattform und ist beim Abgleichen nützlicher, wenn
+  man sie ganz sieht.
+* **Instagram und Facebook haben getrennte Felder**, obwohl beide meistens
+  über dieselbe Meta-App laufen. Eine geteilte Zeile wäre eine Annahme über
+  Metas Kontenlandschaft, die heute stimmt und in zwei Jahren vielleicht
+  nicht mehr. Zweimal denselben Wert einzutragen kostet eine Minute, das
+  Auseinandernehmen später eine Migration.
+
+Die **Rückruf-Adresse** steht je Kanal ausgeschrieben auf der Seite. Sie
+muss im Entwicklerbereich der Plattform zeichengenau eingetragen sein, und
+das macht man dort einmal und nicht zweimal.
+
+Adapter holen ihre Zugangsdaten über `einstellungen.kanal_wert` und nie
+direkt aus der Konfiguration — sonst läge ein Wert in der Maske, der nicht
+benutzt wird. Der Import steht dabei **in der Funktion**: `einstellungen`
+liest umgekehrt das Verzeichnis der Kanäle, und oben im Modul wäre das ein
+Kreis.
 
 **Das Passwort** lässt sich dort ebenfalls ändern. Das alte wird verlangt,
 obwohl die Sitzung schon angemeldet ist — sonst reicht ein offener Browser,
