@@ -209,6 +209,8 @@ class Pinterest(Kanal):
             typen=("image",),
             # Pinterest schneidet die Beschreibung eines Pins hier ab.
             max_beschreibung=800,
+            # Pins stehen hochkant. Pinterest empfiehlt 2:3.
+            bild_format="2:3",
         )
 
     # --- Verbinden -----------------------------------------------------

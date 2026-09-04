@@ -381,6 +381,8 @@ class Facebook(MetaKanal):
             max_beschreibung=2000,
             link_im_text=True,
             link_klickbar=True,
+            # Facebook zeigt Beitragsbilder quer.
+            bild_format="16:9",
         )
 
     bereiche = (
@@ -483,6 +485,9 @@ class Instagram(MetaKanal):
             typen=("image",),
             # Instagram schneidet die Bildunterschrift hier ab.
             max_beschreibung=2200,
+            # Instagram bevorzugt hochkant, 4:5 fuellt den Bildschirm ohne
+            # dass etwas abgeschnitten wird.
+            bild_format="4:5",
             link_im_text=True,
             # Der Punkt, der diesen Kanal von allen anderen unterscheidet.
             link_klickbar=False,

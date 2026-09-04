@@ -116,6 +116,11 @@ class Kanal:
     # der "hier klicken" sagt, ist dort schlicht falsch, und die einzige
     # klickbare Stelle des ganzen Kontos ist der Link im Profil.
     link_klickbar: bool = True
+    # In welchem Seitenverhältnis das Bild erzeugt wird. Pinterest zeigt
+    # Pins hochkant und schneidet ein quadratisches Bild oben und unten
+    # weg; Facebook zeigt quer. Ein Bild im falschen Format ist kein
+    # Fehler, den jemand meldet — es sieht nur immer etwas daneben aus.
+    bild_format: str = "1:1"
 
     # --- Verbinden -----------------------------------------------------
 

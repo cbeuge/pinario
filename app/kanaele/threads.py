@@ -126,6 +126,7 @@ class Threads(Kanal):
             unterstuetzt_ablagen=False,
             typen=("image",),
             max_beschreibung=MAX_TEXT,
+            bild_format="1:1",
             # Kein eigenes Feld für den Ziel-Link, er gehört in den Text.
             link_im_text=True,
             # **Anders als bei Instagram ist er dort anklickbar.** Threads

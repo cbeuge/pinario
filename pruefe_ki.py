@@ -206,15 +206,85 @@ def _wirft(roh) -> bool:
     return False
 
 
+# --- Die Anfrage fuers Bild ---------------------------------------------
+
+# Am 04.09.2026 ging hier die komplette Text-Anfrage an das Bildmodell:
+# "Du schreibst 3 Vorschlaege fuer einen Beitrag auf Facebook, Titel
+# hoechstens 100 Zeichen, Deutsch, geduzt...". Ein Bildmodell kann damit
+# nichts anfangen, es antwortete mit NO_IMAGE und lieferte **jedes Mal**
+# nichts. Gemessen mit demselben Briefing gegen beide Fassungen: alte
+# Anfrage 0 Bilder, reine Bildbeschreibung sofort eines.
+BILD_STANDARD = {
+    "titel": "Behalte den Ueberblick",
+    "beschreibung": "Alle Ausgaben an einem Ort.",
+    "briefing": "Finanzueberblick ohne Bankanbindung.",
+    "format": "2:3",
+}
+
+BILD_ENTHALTEN = [
+    ("Der Titel des Beitrags steht drin", {}, ["Behalte den Ueberblick"]),
+    ("Die Beschreibung auch", {}, ["Alle Ausgaben an einem Ort."]),
+    ("Das Briefing als Hintergrund", {}, ["Finanzueberblick ohne Bankanbindung."]),
+    ("Das Seitenverhaeltnis des Kanals", {"format": "16:9"}, ["16:9"]),
+    ("Verbot: Schrift im Bild", {}, ["Keine Schrift"]),
+    ("Verbot: Menschen", {}, ["Keine Menschen"]),
+    ("Verbot: Logos und Marken", {}, ["Logos"]),
+    ("Es wird ausdruecklich ein Bild verlangt", {}, ["Erzeuge ein Bild"]),
+    ("Ohne Briefing geht es trotzdem",
+     {"briefing": None}, ["Behalte den Ueberblick"]),
+]
+
+# Was auf keinen Fall drinstehen darf: alles, was nach einer Textaufgabe
+# klingt. Genau daran ist die alte Fassung gescheitert.
+BILD_FEHLEN = [
+    ("Keine Anweisung zum Texteschreiben", {}, ["Du schreibst"]),
+    ("Keine Zeichengrenzen fuer Texte", {}, ["hoechstens", "Zeichen."]),
+    ("Kein Ziel-Link im Bildauftrag", {}, ["Ziel-Link"]),
+    ("Keine Regeln zur Sprache", {}, ["geduzt"]),
+    ("Ohne Briefing kein leerer Hintergrund-Block",
+     {"briefing": None}, ["Hintergrund fuer die Bildidee"]),
+]
+
+
+def _pruefe_bildanfragen() -> int:
+    from app.ki import bild_anfrage_bauen
+
+    fehler = 0
+    print()
+    print("Die Anfrage fuers Bild")
+    for name, abweichung, teile in BILD_ENTHALTEN:
+        text = bild_anfrage_bauen(**{**BILD_STANDARD, **abweichung})
+        fehlt = [t for t in teile if t not in text]
+        if fehlt:
+            fehler += 1
+            print(f"  FEHLER  {name} (fehlt: {fehlt})")
+        else:
+            print(f"  ok      {name}")
+
+    for name, abweichung, teile in BILD_FEHLEN:
+        text = bild_anfrage_bauen(**{**BILD_STANDARD, **abweichung})
+        drin = [t for t in teile if t in text]
+        if drin:
+            fehler += 1
+            print(f"  FEHLER  {name} (steht drin: {drin})")
+        else:
+            print(f"  ok      {name}")
+
+    return fehler
+
+
 def main() -> int:
-    fehler = _pruefe_anfragen() + _pruefe_antworten()
+    fehler = _pruefe_anfragen() + _pruefe_antworten() + _pruefe_bildanfragen()
 
     print()
     if fehler:
         print(f"{fehler} Prüfung(en) fehlgeschlagen.")
         return 1
 
-    gesamt = len(ENTHALTEN) + len(FEHLEN) + len(_antwort_faelle())
+    gesamt = (
+        len(ENTHALTEN) + len(FEHLEN) + len(_antwort_faelle())
+        + len(BILD_ENTHALTEN) + len(BILD_FEHLEN)
+    )
     print(f"Alle {gesamt} Prüfungen bestanden.")
     return 0
 

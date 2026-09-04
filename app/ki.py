@@ -320,8 +320,82 @@ def verbindung_pruefen() -> str:
     return modell
 
 
-def bild_erzeugen(anfrage: str) -> bytes:
-    """Ein Bild zum Beitrag. Liefert die Rohdaten, speichert nichts."""
+def bild_anfrage_bauen(
+    *,
+    titel: str,
+    beschreibung: str,
+    briefing: str | None,
+    format: str = "1:1",
+) -> str:
+    """Die Anfrage für das Bild — und **nur** für das Bild.
+
+    Der Grund, warum es diese Funktion gibt, hat am 04.09.2026 einen halben
+    Tag gekostet: vorher ging die komplette Text-Anfrage an das Bildmodell,
+    also "Du schreibst 3 Vorschläge für einen Beitrag auf Facebook, Titel
+    höchstens 100 Zeichen, Deutsch, geduzt…". Ein Bildmodell kann damit
+    nichts anfangen. Es antwortete mit `finish_reason=NO_IMAGE` und
+    lieferte **jedes Mal** nichts — nachgemessen mit demselben Briefing gegen
+    beide Fassungen: alte Anfrage 0 Bilder, reine Bildbeschreibung sofort
+    eines.
+
+    Ein Bildmodell will beschrieben bekommen, was zu sehen ist. Sonst nichts.
+
+    Drei Regeln stehen fest darin:
+
+    * **Keine Schrift im Bild.** Bildmodelle setzen gern Wörter hinein, und
+      sie schreiben sie falsch. Ein Pin mit einem Tippfehler im Bild ist
+      unbrauchbar, und auffallen würde er erst draußen.
+    * **Keine Menschen.** Zum einen postet pinario keine erfundenen Fotos von
+      Personen, zum anderen laufen Anfragen mit Personenbeschreibung in
+      Filter — und dann steht wieder ein Text ohne Bild da.
+    * **Keine Logos und keine Marken**, aus demselben Grund.
+    """
+    briefing = (briefing or "").strip()
+
+    zeilen = [
+        "Erzeuge ein Bild für einen Social-Media-Beitrag.",
+        "",
+        "Der Beitrag sagt sinngemäß:",
+        f"{(titel or '').strip()}",
+    ]
+    if (beschreibung or "").strip():
+        zeilen.append((beschreibung or "").strip())
+
+    if briefing:
+        # Nur als Hintergrund, nicht als Anweisung: sonst versucht das
+        # Modell, das Briefing bildlich nachzuerzählen.
+        zeilen += [
+            "",
+            "Worum es geht, als Hintergrund für die Bildidee:",
+            briefing,
+        ]
+
+    zeilen += [
+        "",
+        "So soll das Bild sein:",
+        "- Ein einziges, ruhiges Motiv, das zum Thema passt. Gegenstände,",
+        "  Räume, Materialien, Licht — kein Wimmelbild.",
+        "- Fotografisch und natürlich, kein Stockfoto-Look, keine grellen",
+        "  Farben, keine Collage.",
+        f"- Seitenverhältnis {format}, das Motiv passt in dieses Format.",
+        "",
+        "Was auf keinen Fall hineingehört:",
+        "- **Keine Schrift, keine Buchstaben, keine Zahlen im Bild.**",
+        "- **Keine Menschen**, auch nicht angeschnitten, von hinten oder",
+        "  verschwommen. Keine Hände.",
+        "- Keine Logos, Markenzeichen oder erfundenen Produktverpackungen.",
+        "- Keine Diagramme und keine Bildschirminhalte, die Zahlen zeigen.",
+    ]
+    return chr(10).join(zeilen)
+
+
+def bild_erzeugen(anfrage: str, format: str = "1:1") -> bytes:
+    """Ein Bild zum Beitrag. Liefert die Rohdaten, speichert nichts.
+
+    `format` ist das Seitenverhältnis und kommt vom Kanal: ein Pin steht
+    hochkant, ein Facebook-Beitrag quer. Ohne die Angabe liefert Gemini
+    quadratisch, und das sieht überall etwas daneben aus.
+    """
     klient = _klient()
     modell = current_app.config["GEMINI_MODELL_BILD"]
 
@@ -331,7 +405,10 @@ def bild_erzeugen(anfrage: str) -> bytes:
         antwort = klient.models.generate_content(
             model=modell,
             contents=anfrage,
-            config=types.GenerateContentConfig(response_modalities=["IMAGE"]),
+            config=types.GenerateContentConfig(
+                response_modalities=["IMAGE"],
+                image_config=types.ImageConfig(aspect_ratio=format),
+            ),
         )
     except Exception as fehler:  # noqa: BLE001
         raise _uebersetze(fehler) from fehler
@@ -341,9 +418,31 @@ def bild_erzeugen(anfrage: str) -> bytes:
         if daten:
             return daten
 
+    # Der Grund steht in `finish_reason` und gehört in die Meldung. Ohne ihn
+    # sieht jedes leere Ergebnis gleich aus, und man rät zwischen Filter,
+    # falscher Anfrage und einem Modell, das gerade nichts liefert.
+    grund = ""
+    for kandidat in getattr(antwort, "candidates", None) or []:
+        wert = getattr(kandidat, "finish_reason", None)
+        if wert is not None:
+            grund = str(getattr(wert, "name", wert))
+            break
+
+    if grund == "NO_IMAGE":
+        raise KIFehler(
+            "Gemini hat kein Bild geliefert (NO_IMAGE). Das Modell konnte mit "
+            "der Anfrage nichts anfangen — meist beschreibt sie kein Motiv, "
+            "sondern eine Aufgabe."
+        )
+    if grund in ("SAFETY", "PROHIBITED_CONTENT", "IMAGE_SAFETY"):
+        raise KIFehler(
+            f"Gemini hat das Bild abgelehnt ({grund}). Die Anfrage läuft in "
+            "einen Filter, meist wegen beschriebener Personen oder einer "
+            "Marke."
+        )
     raise KIFehler(
-        "Gemini hat kein Bild geliefert. Häufigster Grund: die Anfrage "
-        "beschreibt Menschen oder eine Marke und läuft in einen Filter."
+        "Gemini hat kein Bild geliefert"
+        + (f" ({grund})." if grund else ".")
     )
 
 

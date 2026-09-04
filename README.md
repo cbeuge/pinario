@@ -298,6 +298,39 @@ venv\Scripts\python.exe pruefe_ki.py
 drinstehen, dass die Google-Regel nur bei Google auftaucht, und dass zu
 lange Antworten an der Wortgrenze gekürzt werden statt mitten im Wort.
 
+### Die Anfrage fürs Bild ist eine eigene
+
+**Das kostete am 04.09.2026 einen halben Tag.** Vorher ging die komplette
+Text-Anfrage an das Bildmodell — also „Du schreibst 3 Vorschläge für einen
+Beitrag auf Facebook, Titel höchstens 100 Zeichen, Deutsch, geduzt…". Ein
+Bildmodell kann damit nichts anfangen: es antwortete mit
+`finish_reason=NO_IMAGE` und lieferte **jedes Mal** nichts. Nachgemessen mit
+demselben Briefing gegen beide Fassungen: alte Anfrage 0 Bilder, reine
+Bildbeschreibung sofort eines.
+
+Die irreführende Spur dabei war die eigene Fehlermeldung. Sie riet auf
+„beschreibt Menschen oder eine Marke und läuft in einen Filter", und weil im
+Briefing zufällig Personen vorkamen, sah das nach der Erklärung aus. Sie war
+falsch. Seitdem nennt die Meldung den `finish_reason`, den Gemini
+mitschickt: `NO_IMAGE` heißt „mit der Anfrage nichts anfangen können",
+`SAFETY` heißt Filter. Das sind zwei verschiedene Probleme und sie sahen
+vorher gleich aus.
+
+`bild_anfrage_bauen` beschreibt deshalb nur, was zu sehen sein soll. Drei
+Regeln stehen fest darin:
+
+* **Keine Schrift im Bild.** Bildmodelle setzen gern Wörter hinein und
+  schreiben sie falsch. Ein Pin mit Tippfehler im Bild fällt erst draußen
+  auf.
+* **Keine Menschen.** pinario erzeugt keine erfundenen Fotos von Personen —
+  und Anfragen mit Personenbeschreibung laufen zusätzlich in Filter.
+* **Keine Logos und Marken**, aus demselben Grund.
+
+Dazu das **Seitenverhältnis vom Kanal** (`bild_format`): Pinterest 2:3,
+Instagram 4:5, Facebook 16:9, Threads 1:1. Es geht als `aspect_ratio` an
+Gemini. Ein quadratisches Bild auf Pinterest ist kein Fehler, den jemand
+meldet — es sieht nur immer etwas daneben aus.
+
 **Ein gescheitertes Bild kostet nicht den ganzen Schwung.** Der Text ist das
 Teure am Vorgang; wenn das Bild in einen Filter läuft, bleibt die Variante
 stehen und sagt es. Nachreichen geht einzeln.

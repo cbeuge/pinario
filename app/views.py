@@ -495,10 +495,20 @@ def varianten_erzeugen(verbindung_id: int):
             # Der Text ist das Teure am Vorgang, das Bild lässt sich einzeln
             # nachreichen.
             try:
+                # **Eine eigene Anfrage, nicht die für den Text.** Bis zum
+                # 04.09.2026 ging hier der komplette Text-Prompt an das
+                # Bildmodell — "Du schreibst 3 Vorschläge für einen Beitrag
+                # auf Facebook, Titel höchstens 100 Zeichen…" — und deshalb
+                # kam nie ein Bild zurück. Siehe `ki.bild_anfrage_bauen`.
                 pfad = ki.bild_ablegen(
                     ki.bild_erzeugen(
-                        f"{anfrage}\n\nBild zu diesem Vorschlag:\n"
-                        f"{vorschlag.titel}\n{vorschlag.beschreibung}"
+                        ki.bild_anfrage_bauen(
+                            titel=vorschlag.titel,
+                            beschreibung=vorschlag.beschreibung,
+                            briefing=kampagne_eintrag.briefing,
+                            format=adapter.bild_format,
+                        ),
+                        adapter.bild_format,
                     )
                 )
             except ki.KIFehler as fehler:
