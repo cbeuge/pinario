@@ -65,6 +65,8 @@ Sonderfall in der Kampagnen-Maske.
 * **Facebook und Instagram** (`app/kanaele/meta.py`), beide über die Graph
   API. Anders als bei Pinterest wartet man hier auf niemanden: für eigene
   Konten reicht eine App im Entwicklungsmodus
+* **Threads** (`app/kanaele/threads.py`), eigener Host und eigene App.
+  Damit haben vier von fünf Kanälen einen Adapter, nur X fehlt
 * `www.pinario.de` leitet per 301 auf die Hauptadresse um, das Zertifikat
   deckt beide Namen ab
 
@@ -109,6 +111,7 @@ app/
                   basis.py            was ein Kanal können muss
                   pinterest.py        Pinterest API v5
                   meta.py             Facebook-Seiten und Instagram
+                  threads.py          Threads
                   google_business.py  Google Business Profile
 marke_quelle/     Vorlage und Werkzeug für die Logo-Dateien
 betrieb/          systemd-Unit und nginx-Konfiguration
@@ -118,6 +121,7 @@ pruefe_ki.py          misst die Anfrage an Gemini nach (28 Fälle)
 pruefe_zeitplan.py    misst das Rechnen der Termine nach (20 Fälle)
 pruefe_pinterest.py   misst den Pinterest-Adapter nach, ohne Netz (67 Fälle)
 pruefe_meta.py        misst Facebook und Instagram nach, ohne Netz (81 Fälle)
+pruefe_threads.py     misst den Threads-Adapter nach, ohne Netz (61 Fälle)
 pruefe_verbinden.py   misst den Verbinden-Weg nach, braucht die Datenbank
                       (44 Fälle)
 ```
@@ -609,6 +613,60 @@ Nachgemessen ohne Netz:
 
 ```
 venv\Scripts\python.exe pruefe_meta.py    81 Fälle
+```
+
+## Threads
+
+Gehört Meta, ist aber **keine Erweiterung der Graph API** und steht deshalb
+in einer eigenen Datei. Alles ist anders: eigener Host
+(`graph.threads.net`), eigener Anmeldeweg über `threads.net`, eigene Rechte
+(`threads_basic`, `threads_content_publish`), **eine eigene App** im
+Entwicklerbereich und ein eigenes Verfahren fürs Erneuern. Wer sie zu
+`meta.py` dazuschriebe, hätte eine Klasse, die von ihrer Basis nichts mehr
+benutzt.
+
+**Die App aus dem Instagram- oder Facebook-Kanal passt hier nicht.** Threads
+ist im Meta-Entwicklerbereich ein eigener Anwendungsfall mit eigenen
+Schlüsseln; deshalb hat der Kanal unter `/einstellungen` eigene Felder.
+
+**Es gibt hier keine Ablagen.** Ein Threads-Konto hat keine Boards, keine
+Seiten, keine Standorte — gepostet wird auf das verbundene Konto und sonst
+nirgendwohin. Am Kampagnen-Kanal ist deshalb nichts einzutragen, und ein
+Wert in `ablage_id` lenkt den Beitrag auch nicht um.
+
+Drei Dinge, die man vorher wissen sollte:
+
+**Das Threads-Konto hängt an einem Instagram-Konto, der Zugang dazu aber
+nicht.** Verbunden wird direkt über Threads. Ein bei Instagram verbundenes
+Konto hilft hier nicht.
+
+**Erneuern geht erst ab 24 Stunden.** Ein jüngeres Token lehnt Threads beim
+Auffrischen ab. Im Betrieb stört das nicht — erneuert wird kurz vor Ablauf
+nach 60 Tagen —, aber wer es gleich nach dem Verbinden ausprobiert, sucht
+den Fehler sonst im Code.
+
+**Ein Token, das 60 Tage nicht erneuert wurde, ist endgültig tot.** Es lässt
+sich dann nicht mehr auffrischen, das Konto muss neu verbunden werden. Der
+Zeitplan erneuert deshalb rechtzeitig von selbst.
+
+Sonst läuft es wie bei Instagram: erst ein Container (`/threads`), dann
+veröffentlichen (`/threads_publish`), dazwischen die Statusabfrage. Threads
+empfiehlt pauschal 30 Sekunden zu warten; der Adapter fragt stattdessen ab,
+weil der Container meist lange vorher fertig ist und die Zeit sonst jedem
+weiteren Beitrag desselben Laufs fehlt.
+
+**Der Ziel-Link ist hier anklickbar**, anders als bei Instagram: Threads
+erkennt die **erste** Adresse im Text und baut eine Vorschau daraus. Genau
+deshalb steht der Ziel-Link am Ende und die Anfrage an das Modell verbietet
+fremde Adressen — sonst zeigt die Vorschau die falsche Seite.
+
+**Threads liefert weder Klicks noch Speicherungen**, nur `views`. Beide
+Felder bleiben 0. Eine 0 heißt hier "gibt es nicht", nicht "war nicht", und
+darin liegt der Grund, warum die Auswertung Kanäle nicht einfach
+nebeneinander stellen darf.
+
+```
+venv\Scripts\python.exe pruefe_threads.py    61 Fälle
 ```
 
 ## Zeitplan
