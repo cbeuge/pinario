@@ -35,6 +35,7 @@ from .models import (
 )
 from .rechtstexte import KATEGORIEN, rechtstext
 from .zeit import jetzt, nach_berlin
+from .zeitplan import WOCHENTAGE
 
 haupt = Blueprint("haupt", __name__)
 
@@ -260,6 +261,7 @@ def kampagne(kampagne_id: int):
         zeilen=zeilen,
         status_werte=KAMPAGNE_STATUS,
         quellen=QUELLE,
+        wochentage=WOCHENTAGE,
         loeschbar=_ist_loeschbar(eintrag),
     )
 
@@ -374,6 +376,7 @@ def kampagne_kanal(kampagne_id: int, channel_id: int):
             "time_window": formular.zeitfenster(
                 request.form.get("zeit_von"), request.form.get("zeit_bis")
             ),
+            "weekdays": formular.wochentage(request.form.getlist("weekdays")),
         }
         if adapter.unterstuetzt_ablagen:
             if request.form.get("ablagen_gewaehlt") == "ja":

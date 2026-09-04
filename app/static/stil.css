@@ -443,3 +443,23 @@ code {
   border-radius: 8px;
 }
 .auswahlliste label.kasten { margin: .25rem 0; }
+
+/* Die Wochentage als Reihe kleiner Schalter. Sieben Ankreuzfelder
+   untereinander wären eine halbe Seite für eine einzige Angabe. */
+.tagereihe { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .2rem; }
+.tagereihe .tag {
+  display: flex; align-items: center; gap: .35rem;
+  padding: .35rem .55rem;
+  background: var(--flaeche);
+  border: 1px solid var(--rand);
+  border-radius: 8px;
+  font-size: .85rem;
+  cursor: pointer;
+}
+.tagereihe .tag input { width: auto; margin: 0; }
+/* Ein angehakter Tag soll sich vom nicht angehakten unterscheiden, ohne
+   dass man aufs Kästchen schauen muss. */
+.tagereihe .tag:has(input:checked) {
+  border-color: var(--akzent);
+  color: var(--text);
+}

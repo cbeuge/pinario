@@ -76,6 +76,20 @@ TAGE_VORAUS = 30
 STANDARD_FENSTER = ("09:00", "21:00")
 STANDARD_PRO_TAG = 3
 
+# Die Wochentage, an denen gepostet wird. Montag ist 0, wie bei
+# `date.weekday()` — die Zahlen kommen so aus der Maske und werden nirgends
+# umgerechnet, weil jede Umrechnung eine Stelle ist, an der man sich um
+# eins vertun kann.
+WOCHENTAGE = (
+    (0, "Mo"),
+    (1, "Di"),
+    (2, "Mi"),
+    (3, "Do"),
+    (4, "Fr"),
+    (5, "Sa"),
+    (6, "So"),
+)
+
 
 # --- Termine rechnen ---------------------------------------------------
 
@@ -91,6 +105,36 @@ def _fenster(einstellungen: dict) -> tuple[time, time]:
     return von, bis
 
 
+def _tage(einstellungen: dict) -> set[int]:
+    """An welchen Wochentagen dieser Kanal postet.
+
+    **Eine leere oder fehlende Angabe heißt: an allen.** Das ist wichtig für
+    alles, was vor dem 04.09.2026 eingerichtet wurde — dort steht das Feld
+    gar nicht, und ein leeres Set würde bedeuten, dass nie wieder etwas
+    rausgeht. Ein stummer Stillstand wäre der teuerste Fehler dieser Datei.
+    """
+    roh = einstellungen.get("weekdays")
+    if not roh:
+        return {tag for tag, _ in WOCHENTAGE}
+    gewaehlt = set()
+    for wert in roh:
+        try:
+            zahl = int(wert)
+        except (TypeError, ValueError):
+            continue
+        if 0 <= zahl <= 6:
+            gewaehlt.add(zahl)
+    # Steht dort nur Unsinn, gilt wieder "an allen Tagen". Sonst hörte der
+    # Kanal wegen eines kaputten Werts auf zu posten, ohne dass es jemand
+    # merkt.
+    return gewaehlt or {tag for tag, _ in WOCHENTAGE}
+
+
+def postet_am(tag: date, einstellungen: dict) -> bool:
+    """Ob an diesem Wochentag überhaupt gepostet wird."""
+    return tag.weekday() in _tage(einstellungen)
+
+
 def slots(tag: date, einstellungen: dict) -> list:
     """Die Uhrzeiten eines Tages, an denen gepostet werden darf.
 
@@ -102,6 +146,11 @@ def slots(tag: date, einstellungen: dict) -> list:
     Bewusst ohne Zufall. Etwas Streuung sähe menschlicher aus, aber sie macht
     jede Prüfung zur Glücksfrage und jeden Fehlerbericht unwiederholbar.
     """
+    # An einem Tag, der nicht gewählt ist, gibt es keine Termine. Die Prüfung
+    # steht hier und nicht beim Aufrufer, damit sie niemand vergessen kann.
+    if not postet_am(tag, einstellungen):
+        return []
+
     von, bis = _fenster(einstellungen)
     # Fehlt der Wert oder ist er keine Zahl, gilt der Standard. Steht dort
     # eine Zahl außerhalb des Erlaubten, wird sie in die Grenzen gezogen und

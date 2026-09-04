@@ -85,7 +85,15 @@
         {% if zeile.verbindung %}
           <td>{{ 'erzeugen' if zeile.verbindung.content_source == 'ai_generated' else 'hochladen' }}</td>
           <td class="zahl">{{ zeile.einstellungen.get('posts_per_day', 3) }}</td>
-          <td>{{ fenster[0] }}–{{ fenster[1] }}</td>
+          <td>
+            {{ fenster[0] }}–{{ fenster[1] }}
+            {% set tage = zeile.einstellungen.get('weekdays') %}
+            {% if tage and tage | length < 7 %}
+              <span class="leise">
+                {{ wochentage | selectattr('0', 'in', tage) | map(attribute='1') | join(' ') }}
+              </span>
+            {% endif %}
+          </td>
           {# Zwei Zahlen, weil die erste allein täuscht: ein Kanal kann
              voller Varianten sein und trotzdem nichts posten, solange
              keine davon freigegeben ist. #}
@@ -131,6 +139,22 @@
                 <input type="number" id="proTag-{{ zeile.kanal.id }}" name="posts_per_day"
                        min="1" max="25" required
                        value="{{ zeile.einstellungen.get('posts_per_day', 3) }}">
+
+                {% set tage = zeile.einstellungen.get('weekdays') %}
+                <label>An diesen Tagen</label>
+                <div class="tagereihe">
+                  {% for zahl, kuerzel in wochentage %}
+                    <label class="tag">
+                      <input type="checkbox" name="weekdays" value="{{ zahl }}"
+                             {% if not tage or zahl in tage %}checked{% endif %}>
+                      <span>{{ kuerzel }}</span>
+                    </label>
+                  {% endfor %}
+                </div>
+                <p class="feldhilfe leise">
+                  Zweimal die Woche heißt also: nur Mo und Do anhaken und
+                  darüber 1 Beitrag pro Tag. Ohne Auswahl gilt jeder Tag.
+                </p>
 
                 <label>Zeitfenster</label>
                 <div class="zeitpaar">

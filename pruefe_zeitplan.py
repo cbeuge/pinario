@@ -22,7 +22,7 @@ import sys
 from datetime import date, timedelta
 
 from app import create_app
-from app.zeitplan import STANDARD_PRO_TAG, slots
+from app.zeitplan import STANDARD_PRO_TAG, postet_am, slots
 
 app = create_app()
 fehler = 0
@@ -105,6 +105,44 @@ with app.app_context():
     verdreht = slots(NORMAL, {"posts_per_day": 3, "time_window": ["21:00", "09:00"]})
     pruefe("Ein verdrehtes Fenster gibt genau einen Termin statt negativer Abstaende",
            len(verdreht) == 1, len(verdreht))
+
+    print()
+    print("Wochentage")
+    # Mo 07.09.2026 bis So 13.09.2026.
+    WOCHE = [date(2026, 9, 7) + timedelta(days=i) for i in range(7)]
+
+    def _woche(einstellungen):
+        """Beide Wege messen: die Frage allein nuetzt nichts, wenn die
+        Termine sie nicht beachten."""
+        gefragt = [postet_am(tag, einstellungen) for tag in WOCHE]
+        gerechnet = [bool(slots(tag, einstellungen)) for tag in WOCHE]
+        return gefragt if gefragt == gerechnet else [gefragt, gerechnet]
+
+    pruefe("Mo und Do: nur an diesen beiden",
+           _woche({"posts_per_day": 1, "weekdays": [0, 3]})
+           == [True, False, False, True, False, False, False])
+    pruefe("Nur Sonntag",
+           _woche({"posts_per_day": 1, "weekdays": [6]})
+           == [False] * 6 + [True])
+    pruefe("Alle sieben ausdruecklich",
+           _woche({"posts_per_day": 1, "weekdays": [0, 1, 2, 3, 4, 5, 6]})
+           == [True] * 7)
+
+    # Der teure Fall. Alles, was vor dem 04.09.2026 eingerichtet wurde, hat
+    # das Feld gar nicht -- waere "leer" gleich "nie", hoerten diese Kanaele
+    # stillschweigend auf zu posten, ohne dass jemand einen Fehler saehe.
+    pruefe("Ohne Angabe gilt jeder Tag",
+           _woche({"posts_per_day": 1}) == [True] * 7)
+    pruefe("Eine leere Liste gilt auch als jeder Tag",
+           _woche({"posts_per_day": 1, "weekdays": []}) == [True] * 7)
+    pruefe("Unsinn faellt auf jeden Tag zurueck, nicht auf keinen",
+           _woche({"posts_per_day": 1, "weekdays": ["Montag", 99, None]})
+           == [True] * 7)
+
+    am_montag = slots(WOCHE[0], {"posts_per_day": 3, "weekdays": [0]})
+    pruefe("An einem gewaehlten Tag gelten die Uhrzeiten weiter",
+           len(am_montag) == 3 and am_montag[0].hour == 9,
+           am_montag)
 
 print()
 if fehler:

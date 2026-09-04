@@ -85,6 +85,27 @@ def zeitfenster(von: str | None, bis: str | None) -> list[str]:
     return [a.strftime("%H:%M"), b.strftime("%H:%M")]
 
 
+def wochentage(werte: list[str] | None) -> list[int]:
+    """Die angehakten Wochentage, Montag ist 0.
+
+    **Keine Auswahl heißt: alle Tage**, und zwar ausdrücklich als volle
+    Liste und nicht als leere. Eine leere Liste sähe in der Datenbank aus
+    wie "nie posten", und ein Kanal, der stillschweigend aufhört, ist der
+    teuerste Fehler, den dieses Formular machen könnte.
+    """
+    gewaehlt = []
+    for wert in werte or []:
+        try:
+            zahl = int(wert)
+        except (TypeError, ValueError):
+            raise Ungueltig("Ein Wochentag ist keine Zahl.") from None
+        if not 0 <= zahl <= 6:
+            raise Ungueltig("Ein Wochentag liegt außerhalb der Woche.")
+        if zahl not in gewaehlt:
+            gewaehlt.append(zahl)
+    return sorted(gewaehlt) or list(range(7))
+
+
 def kennungen(wert: str | None, *, max_stueck: int = 20) -> list[str]:
     """Board- oder Standort-Kennungen, eine je Zeile oder per Komma getrennt.
 
