@@ -11,9 +11,11 @@ damit Pinterest keine Dubletten sieht, und damit sich messen lässt, welche
 Variante zieht. Dazu kommt bei manchen Kanälen ein Ort innerhalb des
 Kontos: Boards bei Pinterest, Standorte bei Google Business Profile.
 
-Erster Kanal ist Pinterest. Google Business Profile hat einen Adapter, ist
-aber noch nicht benutzbar (Zugang bei Google nicht beantragt). Instagram,
-Facebook und X stehen nur als Struktur bereit.
+**Vier von sechs Kanälen haben einen Adapter**: Pinterest, Facebook,
+Instagram und Threads. Facebook ist seit dem 04.09.2026 wirklich verbunden
+und damit als einziger gegen die echte API belegt. Pinterest wartet auf die
+Freischaltung des Trial-Zugriffs, Google Business Profile auf einen Antrag
+bei Google, und X hat noch keinen Adapter.
 
 **Google Business Profile ist der Ausreißer unter den Kanälen** und
 verdient zwei Sätze. Er erreicht Leute, die *das Unternehmen* suchen, nicht
@@ -79,12 +81,17 @@ Docstring von `PostedItem`.
 
 Noch nicht gebaut:
 
-* Videos erzeugen. Text und Bild stehen, Video nicht
-* Pinterest wirklich verbinden und posten. Der Adapter kennt die Adressen,
-  ist aber **gegen die echte API noch nie gelaufen** — dafür fehlen die
-  Zugangsdaten von developers.pinterest.com
-* Google Business Profile verbinden. Dasselbe wie bei Pinterest, plus die
-  Freischaltung durch Google, siehe unten
+* **Video posten.** Erzeugen ginge — Veo ist über den Gemini-Schlüssel
+  verfügbar —, aber es kostet 0,15 bis 0,40 $ pro Sekunde, und der Upload
+  zur Plattform ist überall ein eigener mehrstufiger Weg. Eigene Videos
+  lassen sich seit dem 04.09.2026 hochladen; sobald ein Kanal Video posten
+  kann, kommt `video` in seine `typen`
+* **Einen Beitrag wirklich rausschicken.** Verbinden, Seiten lesen und
+  Varianten stehen; `veroeffentlichen` ist bei keinem Kanal gegen die echte
+  API gelaufen
+* Pinterest: der Trial-Zugriff ist bei Pinterest beantragt und nicht
+  freigeschaltet, jeder Aufruf gibt Code 3
+* Google Business Profile: Zugang bei Google nicht beantragt, siehe unten
 * Auswertung der Zahlen je Variante
 
 ## Aufbau
@@ -117,13 +124,13 @@ marke_quelle/     Vorlage und Werkzeug für die Logo-Dateien
 betrieb/          systemd-Unit und nginx-Konfiguration
 migrations/       Alembic
 pruefe_rechtstext.py  misst den HTML-Säuberer nach (37 Fälle)
-pruefe_ki.py          misst die Anfrage an Gemini nach (28 Fälle)
-pruefe_zeitplan.py    misst das Rechnen der Termine nach (20 Fälle)
+pruefe_ki.py          misst die Anfragen an Gemini nach (48 Fälle)
+pruefe_zeitplan.py    misst Termine und Wochentage nach (28 Fälle)
 pruefe_pinterest.py   misst den Pinterest-Adapter nach, ohne Netz (67 Fälle)
-pruefe_meta.py        misst Facebook und Instagram nach, ohne Netz (81 Fälle)
+pruefe_meta.py        misst Facebook und Instagram nach, ohne Netz (87 Fälle)
 pruefe_threads.py     misst den Threads-Adapter nach, ohne Netz (61 Fälle)
-pruefe_verbinden.py   misst den Verbinden-Weg nach, braucht die Datenbank
-                      (44 Fälle)
+pruefe_verbinden.py   misst Verbinden, Ablagen und Upload nach, braucht die
+                      Datenbank (73 Fälle)
 ```
 
 ## Lokal starten
