@@ -89,6 +89,75 @@ def befehle_registrieren(app: Flask) -> None:
                     "Konto neu verbinden."
                 )
 
+    @app.cli.command("token-eintragen")
+    @click.argument("kanal_key")
+    @click.password_option(
+        "--token", prompt="Zugriffstoken", confirmation_prompt=False,
+        help="Wird abgefragt statt als Argument genommen, damit es nicht in "
+             "der Verlaufsdatei der Shell landet.",
+    )
+    def token_eintragen(kanal_key: str, token: str) -> None:
+        """Trägt ein von Hand erzeugtes Zugriffstoken als Konto ein.
+
+        Für den Fall, dass eine Plattform ein Token zum Ausprobieren
+        ausgibt, bevor die App freigeschaltet ist. Bei Pinterest ist das
+        eins mit **Leserechten**: Konto und Boards abfragen geht damit,
+        einen Pin schreiben nicht.
+
+        Der normale Weg ist und bleibt OAuth über `/einstellungen`. Ein so
+        eingetragenes Token hat kein Erneuerungs-Token und keinen bekannten
+        Ablauf; es steht deshalb ohne `expires_at` da, damit der Zeitplan
+        nicht versucht, etwas zu erneuern, was sich nicht erneuern lässt.
+        """
+        from .kanaele import BEKANNT, KanalFehler, kanal
+        from .models import Account
+
+        token = (token or "").strip()
+        if not token:
+            raise click.ClickException("Kein Token eingegeben.")
+        if kanal_key not in BEKANNT:
+            raise click.ClickException(
+                f"Für '{kanal_key}' gibt es keinen Adapter. Bekannt: "
+                + ", ".join(sorted(BEKANNT))
+            )
+
+        zeile = db.session.scalar(select(Channel).where(Channel.key == kanal_key))
+        if zeile is None:
+            raise click.ClickException(
+                f"'{kanal_key}' steht nicht in der Tabelle channels."
+            )
+
+        adapter = kanal(kanal_key)
+        # Erst fragen, dann speichern: ein Token, das die Plattform nicht
+        # annimmt, soll gar nicht erst in der Datenbank landen. Sonst steht
+        # dort ein Konto, das der Zeitplan für verbunden hält.
+        try:
+            name = adapter._kontoname(token)  # noqa: SLF001
+        except KanalFehler as fehler:
+            raise click.ClickException(str(fehler)) from fehler
+
+        konto = db.session.scalars(
+            select(Account)
+            .where(Account.channel_id == zeile.id)
+            .order_by(Account.id)
+        ).first()
+        if konto is None:
+            konto = Account(channel_id=zeile.id, access_token="")
+            db.session.add(konto)
+
+        konto.zugang = token
+        konto.erneuerung = ""
+        konto.expires_at = None
+        konto.account_name = name or None
+        db.session.commit()
+
+        click.echo(f"{zeile.name} verbunden als {name or 'ohne Namen'}.")
+        click.echo(
+            "Achtung: ein von Hand erzeugtes Token laeuft irgendwann ab und "
+            "laesst sich nicht erneuern. Sobald die App freigeschaltet ist, "
+            "ueber /einstellungen richtig verbinden."
+        )
+
     @app.cli.command("kanaele-abgleichen")
     def kanaele_abgleichen() -> None:
         """Trägt fehlende Kanäle in `channels` nach.

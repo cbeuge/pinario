@@ -445,6 +445,40 @@ den angemeldeten Nutzer in `g`, das sich alle Anfragen innerhalb eines
 `app_context` teilen — eine einzige Anfrage ohne Anmeldung färbt sonst auf
 alle folgenden ab.
 
+### Ein Token von Hand eintragen
+
+Pinterest gibt im Entwicklerbereich ein Zugriffstoken zum Ausprobieren aus,
+bevor der Trial-Zugriff freigeschaltet ist. Das hat **nur Leserechte**
+(`pins:read, boards:read, user_accounts:read, ads:read, catalogs:read`) —
+Konto und Boards abfragen geht damit, einen Pin schreiben nicht. Solange der
+geheime Schlüssel der App auf "trial-Zugriff ausstehend" steht, ist das der
+einzige Weg, überhaupt etwas gegen die echte API zu messen.
+
+```
+venv\Scripts\python.exe -m flask --app wsgi token-eintragen pinterest
+```
+
+Das Token wird abgefragt und nicht als Argument genommen, sonst stünde es in
+der Verlaufsdatei der Shell. Der Befehl fragt damit zuerst `/user_account`
+ab und **speichert erst, wenn Pinterest antwortet** — ein Token, das nicht
+angenommen wird, soll gar nicht erst in der Datenbank landen, sonst hielte
+der Zeitplan den Kanal für verbunden.
+
+Ein so eingetragenes Token hat kein Erneuerungs-Token und keinen bekannten
+Ablauf. Es steht deshalb ohne `expires_at` da, damit der Zeitplan nicht
+versucht zu erneuern, was sich nicht erneuern lässt. **Sobald die App
+freigeschaltet ist, richtig über `/einstellungen` verbinden.**
+
+Was damit belegt werden kann: `/user_account` (der Befehl selbst) und
+`/boards` (danach `/kanaele/pinterest/ablagen` in der Oberfläche). Das
+Schreiben eines Pins bleibt offen, bis das Token `pins:write` hat.
+
+**Was am 04.09.2026 schon gegen die echte API gelaufen ist:** ein Aufruf mit
+einem absichtlich falschen Token. Pinterest antwortete mit
+`Authentication failed. (Code 2)`, und genau dieser Satz landet über
+`_fehlertext` in `posted_items.fehler`. Damit sind Adresse, Aufbau der
+Anfrage und der Fehlerweg belegt — der Erfolgsweg nicht.
+
 **Was noch fehlt: die App bei Pinterest.** Ohne App-ID und Secret aus
 developers.pinterest.com läuft nichts davon gegen die echte API. Die
 Redirect-URI dort muss `https://pinario.de/kanaele/pinterest/rueckruf`
