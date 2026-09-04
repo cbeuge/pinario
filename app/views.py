@@ -22,7 +22,7 @@ from werkzeug.security import check_password_hash
 from . import einstellungen, formular, ki
 from .auth import MIN_PASSWORTLAENGE, passwort_setzen
 from .extensions import db
-from .kanaele import AKTIV, BEKANNT, ZUGANGSFELDER, kanal, rueckruf_pfad
+from .kanaele import AKTIV, BEKANNT, ZUGANGSFELDER, kanal, rueckruf_adresse
 from .models import (
     KAMPAGNE_STATUS,
     QUELLE,
@@ -34,6 +34,7 @@ from .models import (
     PostedItem,
 )
 from .rechtstexte import KATEGORIEN, rechtstext
+from .zeit import jetzt, nach_berlin
 
 haupt = Blueprint("haupt", __name__)
 
@@ -570,21 +571,30 @@ def zeitplan_seite():
     ).all()
 
     # Wenn nichts rausgeht, ist der Grund fast immer derselbe. Er gehört auf
-    # die Seite, sonst sucht man ihn im Code.
-    ohne_konto = [
-        eintrag.name
-        for eintrag in db.session.scalars(select(Channel).order_by(Channel.id))
-        if eintrag.key in AKTIV
-        and not db.session.scalar(
-            select(func.count(Account.id)).where(Account.channel_id == eintrag.id)
-        )
-    ]
+    # die Seite, sonst sucht man ihn im Code. Zwei Fälle, die verschiedene
+    # Schritte verlangen: gar nicht verbunden, oder verbunden und der Zugang
+    # ist abgelaufen.
+    ohne_konto = []
+    abgelaufen = []
+    for eintrag in db.session.scalars(select(Channel).order_by(Channel.id)):
+        if eintrag.key not in AKTIV:
+            continue
+        konto = db.session.scalars(
+            select(Account)
+            .where(Account.channel_id == eintrag.id)
+            .order_by(Account.id)
+        ).first()
+        if konto is None:
+            ohne_konto.append(eintrag.name)
+        elif konto.expires_at is not None and nach_berlin(konto.expires_at) <= jetzt():
+            abgelaufen.append(eintrag.name)
 
     return render_template(
         "zeitplan.html",
         ansteht=ansteht,
         zuletzt=zuletzt,
         ohne_konto=ohne_konto,
+        abgelaufen=abgelaufen,
     )
 
 
@@ -599,7 +609,6 @@ def _kanal_zeilen() -> list[dict]:
     daraus kein falscher Eindruck wird, steht an jedem Kanal, woran es noch
     hängt: fehlender Adapter, fehlende Freischaltung, fehlende Daten.
     """
-    wurzel = request.url_root.rstrip("/")
     zeilen = []
 
     for eintrag in db.session.scalars(select(Channel).order_by(Channel.id)):
@@ -626,27 +635,55 @@ def _kanal_zeilen() -> list[dict]:
         ]
 
         vollstaendig = einstellungen.kanal_vollstaendig(eintrag.key)
+        konto = db.session.scalars(
+            select(Account)
+            .where(Account.channel_id == eintrag.id)
+            .order_by(Account.id)
+        ).first()
+
         if eintrag.key not in BEKANNT:
             zustand = "kein Adapter"
         elif eintrag.key not in AKTIV:
             zustand = "Freischaltung fehlt"
         elif not vollstaendig:
             zustand = "Zugangsdaten fehlen"
-        else:
+        elif konto is None:
             # Bewusst nicht "bereit": vollstaendig heisst, dass die Angaben
-            # da sind, nicht dass schon jemals etwas darueber gepostet
-            # wurde. Bei Pinterest ist der Adapter gegen die echte API noch
-            # nie gelaufen.
-            zustand = "vollständig"
+            # da sind, nicht dass ein Konto verbunden waere. Solange keins
+            # da ist, ueberspringt der Zeitplan den Kanal.
+            zustand = "nicht verbunden"
+        else:
+            # Auch das heisst noch nicht, dass jemals etwas gepostet wurde.
+            zustand = "verbunden"
 
         zeilen.append({
             "kanal": eintrag,
             "felder": felder,
             "zustand": zustand,
             "vollstaendig": vollstaendig,
+            "konto": konto,
+            # Verbinden geht nur mit Adapter, Freischaltung und Zugangsdaten.
+            # Der Knopf steht sonst da und fuehrt in eine Fehlermeldung.
+            "verbindbar": (
+                eintrag.key in BEKANNT
+                and eintrag.key in AKTIV
+                and vollstaendig
+            ),
+            "ablagen_moeglich": (
+                eintrag.key in BEKANNT
+                and BEKANNT[eintrag.key].unterstuetzt_ablagen
+            ),
+            "ablage_mehrzahl": (
+                BEKANNT[eintrag.key].ablage_mehrzahl
+                if eintrag.key in BEKANNT
+                else ""
+            ),
             # Muss im Entwicklerbereich der Plattform zeichengenau stehen.
-            # Deshalb hier ausgeschrieben statt in einer Anleitung.
-            "rueckruf": wurzel + rueckruf_pfad(eintrag.key),
+            # Deshalb hier ausgeschrieben statt in einer Anleitung, und aus
+            # der Konfiguration statt aus der laufenden Anfrage: ueber
+            # www.pinario.de stuende hier sonst ein anderer Wert als der,
+            # den der Adapter beim Anmelden mitschickt.
+            "rueckruf": rueckruf_adresse(eintrag.key),
         })
 
     return zeilen

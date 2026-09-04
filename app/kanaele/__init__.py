@@ -90,6 +90,22 @@ def rueckruf_pfad(key: str) -> str:
     return f"/kanaele/{key}/rueckruf"
 
 
+def rueckruf_adresse(key: str) -> str:
+    """Die volle Rückruf-Adresse, so wie sie beim Anbieter stehen muss.
+
+    **Die einzige Quelle dafür.** Der Adapter schickt sie beim Anmelden und
+    noch einmal beim Eintauschen des Codes mit, die Einstellungen-Seite zeigt
+    sie zum Abschreiben an — und alle drei müssen zeichengenau dasselbe sein,
+    sonst weist Pinterest den Rückruf ab. Sie aus `request.url_root` zu bauen
+    sieht bequemer aus, liefert aber je nach aufgerufenem Namen einen anderen
+    Wert (mit und ohne `www`) und damit einen, der bei der Plattform nicht
+    hinterlegt ist.
+    """
+    from flask import current_app
+
+    return current_app.config["OEFFENTLICHE_ADRESSE"] + rueckruf_pfad(key)
+
+
 def kanal(key: str) -> Kanal:
     if key not in BEKANNT:
         raise KanalFehler(f"Für '{key}' gibt es noch keinen Adapter.")
@@ -105,5 +121,6 @@ __all__ = [
     "KanalFehler",
     "Zugangsfeld",
     "kanal",
+    "rueckruf_adresse",
     "rueckruf_pfad",
 ]

@@ -39,8 +39,6 @@ gegenlesen, nicht diesen Kommentar glauben.
 
 from urllib.parse import urlencode
 
-from flask import current_app
-
 from .basis import Ablage, Kanal, KanalFehler, Veroeffentlichung, Zahlen
 
 ANMELDUNG = "https://accounts.google.com/o/oauth2/v2/auth"
@@ -78,6 +76,7 @@ class GoogleBusiness(Kanal):
 
     def anmelde_adresse(self, zustand: str) -> str:
         # Import in der Funktion, siehe die Anmerkung im Pinterest-Adapter.
+        from . import rueckruf_adresse
         from ..einstellungen import kanal_wert
 
         kennung = kanal_wert("google_business", "client_id")
@@ -90,7 +89,7 @@ class GoogleBusiness(Kanal):
             )
         return ANMELDUNG + "?" + urlencode({
             "client_id": kennung,
-            "redirect_uri": current_app.config["GOOGLE_REDIRECT_URI"],
+            "redirect_uri": rueckruf_adresse(self.key),
             "response_type": "code",
             "scope": " ".join(BEREICHE),
             "state": zustand,

@@ -29,6 +29,13 @@ einmal nimmt. Bricht der Lauf danach ab, holt der nächste ihn nach
 **4. Was der Kanal nicht annimmt, wird gar nicht erst eingeplant.** Ein
 Pinterest-Pin braucht ein Bild; eine Variante ohne Bild ist dort kein
 gescheiterter Versuch, sondern einer, der nie hätte stattfinden dürfen.
+
+**5. Ein abgelaufener Zugang wird vor dem Lauf erneuert, nicht während er
+scheitert.** Pinterest gibt einen Zugang für 30 Tage aus. Ohne diesen
+Schritt liefe alles einen Monat lang gut und dann gar nichts mehr, mit einem
+`Authentication failed` an jedem einzelnen Beitrag — und niemand sähe, dass
+es nur ein Token war. Lässt sich der Zugang nicht erneuern, gilt derselbe
+Umgang wie unter Punkt 2: der Kanal wird übersprungen, nicht versucht.
 """
 
 from __future__ import annotations
@@ -55,6 +62,11 @@ from .zeit import berliner_zeitpunkt, jetzt, nach_berlin
 # lahmen API darf dauern, und ein zu früh zurückgeholter Eintrag wird doppelt
 # gepostet — der teurere der beiden Fehler.
 HAENGT_AB = timedelta(minutes=30)
+
+# Wie lange vor dem Ablauf ein Zugang erneuert wird. Ein Token, das in fünf
+# Minuten abläuft, ist für einen Lauf, der jetzt losschickt, schon abgelaufen
+# — und der Fehler käme dann mitten aus dem Posten statt davor.
+FRIST = timedelta(hours=6)
 
 # So weit im Voraus wird geplant. Ohne Obergrenze läuft die Suche nach einem
 # freien Platz endlos, wenn ein Kanal mehr fertige Varianten hat, als in
@@ -262,6 +274,31 @@ def _konto(channel_id: int) -> Account | None:
     ).first()
 
 
+def _zugang_sichern(konto: Account, adapter) -> None:
+    """Erneuert den Zugang, wenn er bald abläuft.
+
+    Wirft `KanalFehler`, wenn das nicht geht. Der Aufrufer überspringt den
+    Kanal dann, statt jeden einzelnen Beitrag daran scheitern zu lassen:
+    ein abgelaufenes Token ist kein Problem des Beitrags.
+
+    Ein Konto ohne `expires_at` bleibt unangetastet. Das ist kein Versehen,
+    sondern der Fall "die Plattform hat keinen Ablauf genannt" — dort
+    ungefragt zu erneuern hieße, ein gültiges Token gegen ein neues zu
+    tauschen, ohne zu wissen, ob es überhaupt eins gibt.
+    """
+    if konto.expires_at is None:
+        return
+    if nach_berlin(konto.expires_at) - jetzt() > FRIST:
+        return
+
+    felder = adapter.zugang_erneuern(konto.erneuerung)
+    konto.zugang = felder["zugang"]
+    konto.erneuerung = felder.get("erneuerung") or ""
+    konto.expires_at = felder.get("laeuft_ab")
+    db.session.commit()
+    current_app.logger.info("Zeitplan: Zugang erneuert für %s", adapter.key)
+
+
 def _ablage(verbindung: CampaignChannel) -> str | None:
     """Welches Board beziehungsweise welcher Standort dran ist.
 
@@ -287,7 +324,13 @@ def posten(trocken: bool = False) -> dict:
     `trocken` sagt nur, was passieren würde, und fasst nichts an. Gedacht für
     den Blick vor dem ersten echten Lauf.
     """
-    bericht = {"gepostet": 0, "gescheitert": 0, "uebersprungen": 0, "kein_konto": []}
+    bericht = {
+        "gepostet": 0,
+        "gescheitert": 0,
+        "uebersprungen": 0,
+        "kein_konto": [],
+        "zugang_abgelaufen": [],
+    }
 
     for verbindung in _verbindungen():
         faellig = _faellige(verbindung)
@@ -303,6 +346,23 @@ def posten(trocken: bool = False) -> dict:
             continue
 
         adapter = kanal(verbindung.kanal.key)
+
+        if not trocken:
+            try:
+                _zugang_sichern(konto, adapter)
+            except Exception as fehler:  # noqa: BLE001
+                # Wie bei "kein Konto": nicht auf die Beiträge brennen. Der
+                # Zugang muss erneuert oder das Konto neu verbunden werden,
+                # und das steht dann auf /zeitplan statt an jeder Variante.
+                current_app.logger.warning(
+                    "Zeitplan: Zugang %s nicht erneuerbar: %s",
+                    verbindung.kanal.key,
+                    fehler,
+                )
+                if verbindung.kanal.name not in bericht["zugang_abgelaufen"]:
+                    bericht["zugang_abgelaufen"].append(verbindung.kanal.name)
+                bericht["uebersprungen"] += len(faellig)
+                continue
 
         for eintrag in faellig:
             if trocken:

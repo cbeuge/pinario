@@ -75,12 +75,19 @@ def befehle_registrieren(app: Flask) -> None:
             )
         if bericht["uebersprungen"]:
             # Kein Fehler, aber der häufigste Grund dafür, dass nichts
-            # passiert. Muss dastehen, sonst sucht man im Code.
-            kanaele = ", ".join(sorted(set(bericht["kein_konto"])))
-            click.echo(
-                f"{bericht['uebersprungen']} übersprungen, weil kein Konto "
-                f"verbunden ist ({kanaele})."
-            )
+            # passiert. Muss dastehen, sonst sucht man im Code. Die beiden
+            # Ursachen stehen getrennt da, weil sie Verschiedenes verlangen:
+            # verbinden, oder herausfinden, warum das Erneuern scheitert.
+            click.echo(f"{bericht['uebersprungen']} übersprungen.")
+            if bericht["kein_konto"]:
+                kanaele = ", ".join(sorted(set(bericht["kein_konto"])))
+                click.echo(f"  Kein Konto verbunden: {kanaele}.")
+            if bericht["zugang_abgelaufen"]:
+                kanaele = ", ".join(sorted(set(bericht["zugang_abgelaufen"])))
+                click.echo(
+                    f"  Zugang abgelaufen und nicht erneuerbar: {kanaele}. "
+                    "Konto neu verbinden."
+                )
 
     @app.cli.command("kanaele-abgleichen")
     def kanaele_abgleichen() -> None:

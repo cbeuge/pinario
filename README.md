@@ -25,7 +25,7 @@ Eintrag. Der Kanal trägt deshalb `affiliate_erlaubt = False`
 (`app/kanaele/basis.py`), damit die Regel an einer Stelle lebt statt als
 Sonderfall in der Kampagnen-Maske.
 
-## Stand am 03.09.2026
+## Stand am 04.09.2026
 
 **Live unter https://pinario.de.** Gebaut:
 
@@ -57,6 +57,11 @@ Sonderfall in der Kampagnen-Maske.
   Passwort ändern
 * **Zeitplan** (`app/zeitplan.py`, Ansicht `/zeitplan`): freigegebene
   Varianten bekommen Termine, ein systemd-Timer schickt sie raus
+* **Konto verbinden** (`app/verbinden.py`): OAuth hin und zurück, Konto
+  trennen, Boards des verbundenen Kontos ansehen. Dazu der
+  **Pinterest-Adapter vollständig** — Code eintauschen, Zugang erneuern,
+  Boards lesen, Pin schreiben, Zahlen holen. Gegen die echte API ist davon
+  noch nichts gelaufen, dafür fehlt die App bei Pinterest
 * `www.pinario.de` leitet per 301 auf die Hauptadresse um, das Zertifikat
   deckt beide Namen ab
 
@@ -96,6 +101,7 @@ app/
   ki.py           baut die Anfrage an Gemini und prüft, was zurückkommt
   zeitplan.py     Termine vergeben und fällige Beiträge rausschicken
   einstellungen.py  Werte, die sich im Betrieb ändern, geheime verschlüsselt
+  verbinden.py    OAuth: Konto verbinden, trennen, Ablagen ansehen
   kanaele/        ein Adapter je Plattform
                   basis.py            was ein Kanal können muss
                   pinterest.py        Pinterest API v5
@@ -106,6 +112,9 @@ migrations/       Alembic
 pruefe_rechtstext.py  misst den HTML-Säuberer nach (37 Fälle)
 pruefe_ki.py          misst die Anfrage an Gemini nach (28 Fälle)
 pruefe_zeitplan.py    misst das Rechnen der Termine nach (20 Fälle)
+pruefe_pinterest.py   misst den Adapter nach, ohne Netz (60 Fälle)
+pruefe_verbinden.py   misst den Verbinden-Weg nach, braucht die Datenbank
+                      (44 Fälle)
 ```
 
 ## Lokal starten
@@ -135,6 +144,12 @@ venv\Scripts\python.exe wsgi.py
 
 Läuft auf http://127.0.0.1:5001. Port 5001, weil betmaster lokal auf 5000
 liegt.
+
+**`OEFFENTLICHE_ADRESSE` bleibt dabei auf `https://pinario.de`**, auch lokal.
+Daraus wird die Rückruf-Adresse gebaut, die auf der Einstellungen-Seite zum
+Abschreiben steht — und abgeschrieben wird sie in den Entwicklerbereich der
+Plattform, wo genau eine Adresse hinterlegt ist. Stünde hier `localhost`,
+trüge man dort die falsche ein.
 
 **Lokal gehört die Datenbank der Rolle `bestellone`, nicht einer eigenen
 Rolle `pinario`.** Das ist Absicht und folgt dem, was auf diesem Rechner
@@ -365,6 +380,77 @@ Kommandozeile bleibt daneben bestehen:
 cd /var/www/pinario && sudo -u www-data ./venv/bin/flask --app wsgi passwort
 ```
 
+## Ein Konto verbinden
+
+Drei Adressen, für jeden Kanal dieselben — die Anwendung kennt dabei keine
+einzelne Plattform:
+
+```
+POST /kanaele/<key>/verbinden   hin zur Plattform
+GET  /kanaele/<key>/rueckruf    zurück von der Plattform
+POST /kanaele/<key>/trennen     Zugang wieder weg
+GET  /kanaele/<key>/ablagen     Boards des verbundenen Kontos
+```
+
+Der Knopf dazu steht auf `/einstellungen` am jeweiligen Kanal, und zwar erst
+dann, wenn es einen Adapter gibt, der Kanal freigeschaltet ist und die
+Zugangsdaten der App hinterlegt sind. Ein Knopf, der sonst nur in eine
+Fehlermeldung führt, ist keine Hilfe.
+
+**Die Rückruf-Adresse kommt aus `OEFFENTLICHE_ADRESSE` in der `.env`**, nicht
+aus der laufenden Anfrage. Sie steht auf der Einstellungen-Seite zum
+Abschreiben und muss im Entwicklerbereich der Plattform **zeichengenau** so
+eingetragen sein. Käme sie aus `request.url_root`, hieße sie über
+`www.pinario.de` plötzlich anders als über `pinario.de` — und Pinterest weist
+den Rückruf dann mit einem `invalid_grant` ab, das nicht sagt, woran es lag.
+
+**Der `zustand` ist kein Beiwerk.** Er wird gewürfelt, liegt in der Sitzung
+und muss beim Rückruf wieder passen. Ohne diese Prüfung könnte jemand einem
+angemeldeten Nutzer einen Rückruf mit *seinem* Code unterschieben, und ab da
+gingen alle Pins auf ein fremdes Board. Er gilt genau einmal.
+
+**Je Kanal gibt es ein Konto.** Der Zeitplan nimmt das erste, das er findet;
+ein zweites daneben wäre ein Zugang, der aussieht, als würde er benutzt, und
+es nie wird. Neu verbinden überschreibt deshalb.
+
+**Ein abgelaufener Zugang wird vor dem Lauf erneuert, nicht während er
+scheitert.** Pinterest gibt einen Zugang für 30 Tage aus. Ohne diesen Schritt
+liefe alles einen Monat lang gut und dann gar nichts mehr, mit einem
+`Authentication failed` an jedem einzelnen Beitrag. Lässt sich der Zugang
+nicht erneuern, wird der Kanal übersprungen statt versucht — dieselbe Regel
+wie bei einem Kanal ohne Konto, und auf `/zeitplan` steht der Grund.
+
+Beim Erneuern schickt Pinterest normalerweise **kein neues
+Erneuerungs-Token** mit. Das alte bleibt gültig und muss stehen bleiben; wer
+es dabei mit einem leeren Wert überschreibt, verliert den Zugang dauerhaft
+und merkt es 30 Tage später.
+
+Nachgemessen ohne Netz und ohne Schlüssel:
+
+```
+venv\Scripts\python.exe pruefe_pinterest.py    60 Fälle, Adapter allein
+venv\Scripts\python.exe pruefe_verbinden.py    44 Fälle, gegen die Anwendung
+```
+
+`pruefe_verbinden.py` ist das einzige Prüfskript, das die **lokale Datenbank**
+braucht: gemessen wird, was zwischen Browser, Sitzung und Tabelle passiert.
+Es sichert vorher, was an Pinterest-Zugangsdaten dasteht, und schreibt genau
+das zurück.
+
+Zwei Fallen darin, die eine funktionierende Anwendung als kaputt melden und
+beide nichts mit ihr zu tun haben: Flask-Login vergleicht bei jeder Anfrage
+einen Abdruck aus IP und Browserkennung, den eine von außen gesetzte Sitzung
+nicht mitbringt (deshalb ist der Schutz dort abgeschaltet), und es merkt sich
+den angemeldeten Nutzer in `g`, das sich alle Anfragen innerhalb eines
+`app_context` teilen — eine einzige Anfrage ohne Anmeldung färbt sonst auf
+alle folgenden ab.
+
+**Was noch fehlt: die App bei Pinterest.** Ohne App-ID und Secret aus
+developers.pinterest.com läuft nichts davon gegen die echte API. Die
+Redirect-URI dort muss `https://pinario.de/kanaele/pinterest/rueckruf`
+lauten. Eingetragen werden die beiden Werte unter `/einstellungen`, nicht in
+die `.env` — dann ist auch kein Neustart nötig.
+
 ## Zeitplan
 
 Zwei Schritte, absichtlich getrennt. **Einplanen** vergibt `geplant_fuer` an
@@ -551,16 +637,26 @@ chmod 600 .env
 systemctl restart pinario
 ```
 
-## Vier Dinge, die später Zeit kosten werden
+## Fünf Dinge, die später Zeit kosten werden
 
 **Pinterest-App im Trial-Modus.** Eine frisch angelegte App darf nur auf das
 eigene Konto. Für pinario reicht das, weil nur eigene Konten bedient werden.
 Wer das übersieht, sucht den Fehler an der falschen Stelle.
 
 **Bilder gehen nicht als Datei-Upload an Pinterest.** Entweder Base64 im
-Aufruf oder eine öffentlich erreichbare Adresse. Für die zweite Variante
-liefert nginx `uploads/` unter `/medien/` aus, siehe
-`betrieb/nginx-pinario.conf`.
+Aufruf oder eine öffentlich erreichbare Adresse. Der Adapter nimmt die
+zweite: nginx liefert `uploads/` unter `/medien/` ohne Anmeldung aus, siehe
+`betrieb/nginx-pinario.conf`, und die Adresse wird aus
+`OEFFENTLICHE_ADRESSE` gebaut. **Vom Entwicklungsrechner aus geht das
+nicht** — er ist von außen nicht erreichbar, Pinterest holt das Bild also
+nirgends ab.
+
+**Video geht bei Pinterest absichtlich nicht.** Ein Pin mit Video braucht den
+dreistufigen Medien-Upload, und die Anwendung erzeugt bisher gar keine
+Videos. Stünde `video` trotzdem in `typen`, würde der Zeitplan ein
+hochgeladenes Video einplanen und der Adapter es beim Posten ablehnen — ein
+gescheiterter Versuch, der nie hätte stattfinden dürfen. Kommt zurück,
+sobald es Videos gibt.
 
 **Der Google-Zugang ist ein Antrag, kein Knopf.** Ein Projekt in der Cloud
 Console anzulegen und die Business-Profile-APIs zu aktivieren reicht nicht;

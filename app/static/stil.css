@@ -234,9 +234,14 @@ button.gefahr:hover { background: var(--rot); color: #fff; }
 .maske input:focus, .maske select:focus, .maske textarea:focus {
   outline: none; border-color: var(--akzent);
 }
-.maske .knopfreihe {
-  display: flex; align-items: center; gap: 1rem; margin-top: 1.2rem;
+/* Steht auch ausserhalb einer Maske: beim Verbinden eines Kanals liegen
+   dort drei einzelne Formulare nebeneinander, und ein Formular ist von sich
+   aus ein Block — ohne diese Regel stapeln sie sich untereinander. */
+.knopfreihe {
+  display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
 }
+.knopfreihe form { display: contents; }
+.maske .knopfreihe { margin-top: 1.2rem; }
 /* Der Knopf soll sich an seinem Text messen, nicht an der Maskenbreite. */
 .maske .knopfreihe button { width: auto; }
 

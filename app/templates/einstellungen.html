@@ -70,6 +70,33 @@
 
     <p class="leise">Rückruf-Adresse: <code>{{ zeile.rueckruf }}</code></p>
 
+    {% if zeile.konto %}
+      <p class="leise">
+        Verbunden{% if zeile.konto.account_name %} als <strong>{{ zeile.konto.account_name }}</strong>{% endif %}
+        seit {{ zeile.konto.created_at | datum }}.
+      </p>
+      <div class="knopfreihe">
+        {% if zeile.ablagen_moeglich %}
+          <a class="textknopf" href="{{ url_for('verbinden.ablagen', kanal_key=zeile.kanal.key) }}">{{ zeile.ablage_mehrzahl }} ansehen</a>
+        {% endif %}
+        <form method="post" action="{{ url_for('verbinden.starten', kanal_key=zeile.kanal.key) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="textknopf">Neu verbinden</button>
+        </form>
+        <form method="post" action="{{ url_for('verbinden.trennen', kanal_key=zeile.kanal.key) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="textknopf gefaehrlich">Trennen</button>
+        </form>
+      </div>
+    {% elif zeile.verbindbar %}
+      <form method="post" action="{{ url_for('verbinden.starten', kanal_key=zeile.kanal.key) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="knopfreihe">
+          <button type="submit" class="knopf">Konto verbinden</button>
+        </div>
+      </form>
+    {% endif %}
+
     <form method="post" action="{{ url_for('haupt.einstellungen_kanal', kanal_key=zeile.kanal.key) }}" class="maske eng">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 

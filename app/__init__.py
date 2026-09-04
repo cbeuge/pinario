@@ -52,10 +52,12 @@ def create_app(config_klasse: type[Config] = Config) -> Flask:
 
     from .auth import auth
     from .cli import befehle_registrieren
+    from .verbinden import verbinden
     from .views import haupt
 
     app.register_blueprint(auth)
     app.register_blueprint(haupt)
+    app.register_blueprint(verbinden)
     befehle_registrieren(app)
 
     app.before_request(csrf_pruefen)

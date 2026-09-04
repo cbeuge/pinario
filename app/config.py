@@ -50,17 +50,29 @@ class Config:
         "GEMINI_MODELL_BILD", "gemini-3-pro-image-preview"
     )
 
+    # Unter welcher Adresse diese Anwendung von außen erreichbar ist. Daraus
+    # wird die Rückruf-Adresse jedes Kanals gebaut, siehe
+    # `kanaele.rueckruf_adresse`.
+    #
+    # **Bewusst aus der Konfiguration und nicht aus der laufenden Anfrage.**
+    # Die Adresse muss im Entwicklerbereich der Plattform zeichengenau
+    # eingetragen sein, und dort steht genau eine. Käme sie aus
+    # `request.url_root`, hieße sie über `www.pinario.de` plötzlich anders
+    # als über `pinario.de` — dieselbe Seite, ein anderer Wert, und Pinterest
+    # weist den Rückruf ab. Lokal gehört `OEFFENTLICHE_ADRESSE=http://localhost:5001`
+    # in die .env.
+    OEFFENTLICHE_ADRESSE = os.environ.get(
+        "OEFFENTLICHE_ADRESSE", "https://pinario.de"
+    ).rstrip("/")
+
+    # Zugangsdaten der Kanäle stehen seit dem 03.09.2026 unter Einstellungen.
+    # Diese beiden Paare bleiben als Rückfall für einen frisch aufgesetzten
+    # Server, siehe `einstellungen._ENV_RUECKFALL`.
     PINTEREST_APP_ID = os.environ.get("PINTEREST_APP_ID", "")
     PINTEREST_APP_SECRET = os.environ.get("PINTEREST_APP_SECRET", "")
-    PINTEREST_REDIRECT_URI = os.environ.get(
-        "PINTEREST_REDIRECT_URI", "https://pinario.de/kanaele/pinterest/rueckruf"
-    )
 
     GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")
     GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "")
-    GOOGLE_REDIRECT_URI = os.environ.get(
-        "GOOGLE_REDIRECT_URI", "https://pinario.de/kanaele/google/rueckruf"
-    )
 
     @staticmethod
     def pruefen() -> None:

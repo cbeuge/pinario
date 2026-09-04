@@ -8,6 +8,16 @@
   <p class="hinweis">
     Kein Konto verbunden: {{ ohne_konto | join(', ') }}. Eingeplante Beiträge
     bleiben stehen, bis das erledigt ist.
+    <a href="{{ url_for('haupt.einstellungen_seite') }}">Verbinden</a>
+  </p>
+{% endif %}
+
+{% if abgelaufen %}
+  <p class="hinweis">
+    Zugang abgelaufen: {{ abgelaufen | join(', ') }}. Der nächste Lauf
+    versucht ihn zu erneuern; klappt das nicht, muss das Konto neu verbunden
+    werden. Eingeplante Beiträge bleiben so lange stehen.
+    <a href="{{ url_for('haupt.einstellungen_seite') }}">Einstellungen</a>
   </p>
 {% endif %}
 

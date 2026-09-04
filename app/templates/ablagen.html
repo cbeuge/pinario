@@ -1,0 +1,42 @@
+{% extends "basis.html" %}
+{% block titel %}{{ adapter.ablage_mehrzahl }} — pinario{% endblock %}
+
+{% block inhalt %}
+<h1>{{ adapter.ablage_mehrzahl }} bei {{ kanal.name }}</h1>
+
+<p class="leise">
+  Konto{% if konto.account_name %} <strong>{{ konto.account_name }}</strong>{% endif %},
+  gerade eben abgerufen.
+</p>
+
+{% if not ablagen %}
+  <p class="hinweis">
+    Das Konto hat noch {% if adapter.ablage_mehrzahl == 'Boards' %}keine Boards{% else %}nichts{% endif %}.
+    Erst dort anlegen, dann hier noch einmal nachsehen.
+  </p>
+{% else %}
+  <table class="liste">
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Kennung</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for eintrag in ablagen %}
+        <tr>
+          <td>{{ eintrag.name }}</td>
+          <td><code>{{ eintrag.id }}</code></td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <p class="kastenfuss leise">
+    Die Kennung gehört am Kanal der Kampagne in das Feld
+    {{ adapter.ablage_mehrzahl }}. Mehrere bekommen reihum etwas ab.
+  </p>
+{% endif %}
+
+<p><a href="{{ url_for('haupt.einstellungen_seite') }}">Zurück zu den Einstellungen</a></p>
+{% endblock %}
