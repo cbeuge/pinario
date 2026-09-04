@@ -140,16 +140,54 @@
                 </div>
 
                 {% if zeile.adapter and zeile.adapter.unterstuetzt_ablagen %}
-                  <label for="ablagen-{{ zeile.kanal.id }}">
-                    {{ zeile.adapter.ablage_mehrzahl }}, eine Kennung je Zeile
-                  </label>
-                  <textarea id="ablagen-{{ zeile.kanal.id }}" name="board_ids" rows="3"
-                            placeholder="Kennung">{{ zeile.einstellungen.get('board_ids', []) | join('\n') }}</textarea>
-                  <p class="feldhilfe leise">
-                    Die Kennungen stehen unter
-                    <a href="{{ url_for('haupt.einstellungen_seite') }}">Einstellungen</a>
-                    beim verbundenen Konto. Mehrere bekommen reihum etwas ab.
-                  </p>
+                  {% if zeile.ablagen is not none %}
+                    {# Auswahl statt Abtippen, sobald ein Konto verbunden ist.
+                       Das versteckte Feld sagt der Verarbeitung, dass die
+                       Haken gelten — sonst wäre "nichts angehakt" nicht von
+                       "gar nicht angezeigt" zu unterscheiden, und ein
+                       Speichern würde die Auswahl stillschweigend leeren. #}
+                    <input type="hidden" name="ablagen_gewaehlt" value="ja">
+                    <label>{{ zeile.adapter.ablage_mehrzahl }}</label>
+                    {% if zeile.ablagen %}
+                      <div class="auswahlliste">
+                        {% for eintrag in zeile.ablagen %}
+                          <label class="kasten">
+                            <input type="checkbox" name="board_ids" value="{{ eintrag.id }}"
+                                   {% if eintrag.id in zeile.gewaehlt %}checked{% endif %}>
+                            {{ eintrag.name }}
+                          </label>
+                        {% endfor %}
+                      </div>
+                      <p class="feldhilfe leise">
+                        Mehrere bekommen reihum etwas ab. Ohne Auswahl geht kein
+                        Beitrag raus.
+                      </p>
+                    {% else %}
+                      <p class="hinweis">
+                        Dieses Konto hat keine {{ zeile.adapter.ablage_mehrzahl }}.
+                        {% if zeile.kanal.key == 'instagram' %}
+                          Bei Instagram heißt das fast immer: das Konto ist kein
+                          Professional-Konto oder nicht mit der Facebook-Seite
+                          verknüpft.
+                        {% endif %}
+                      </p>
+                    {% endif %}
+                  {% else %}
+                    <label for="ablagen-{{ zeile.kanal.id }}">
+                      {{ zeile.adapter.ablage_mehrzahl }}, eine Kennung je Zeile
+                    </label>
+                    <textarea id="ablagen-{{ zeile.kanal.id }}" name="board_ids" rows="3"
+                              placeholder="Kennung">{{ zeile.gewaehlt | join('\n') }}</textarea>
+                    <p class="feldhilfe leise">
+                      {% if zeile.ablagen_fehler %}
+                        Die Liste ließ sich nicht abrufen: {{ zeile.ablagen_fehler }}
+                        Kennungen so lange von Hand.
+                      {% else %}
+                        Sobald ein Konto verbunden ist, stehen hier die
+                        {{ zeile.adapter.ablage_mehrzahl }} zur Auswahl.
+                      {% endif %}
+                    </p>
+                  {% endif %}
                 {% elif zeile.adapter %}
                   <p class="feldhilfe leise">
                     {{ zeile.kanal.name }} kennt keine Unterordnung — gepostet wird

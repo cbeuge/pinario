@@ -175,10 +175,33 @@ def kampagne(kampagne_id: int):
             .where(Account.channel_id == eintrag_kanal.id)
         ))
 
+        # Die Ablagen des verbundenen Kontos, damit man sie auswählen kann
+        # statt Kennungen abzutippen. Kostet einen Aufruf bei der Plattform
+        # und kann scheitern — dann bleibt es beim Textfeld, statt dass die
+        # ganze Seite stehenbleibt.
+        ablagen = None
+        ablagen_fehler = ""
+        if verbunden and adapter is not None and adapter.unterstuetzt_ablagen:
+            konto = db.session.scalars(
+                select(Account)
+                .where(Account.channel_id == eintrag_kanal.id)
+                .order_by(Account.id)
+            ).first()
+            try:
+                ablagen = adapter.ablagen(konto.zugang)
+            except Exception as fehler:  # noqa: BLE001
+                current_app.logger.warning(
+                    "%s abrufen gescheitert: %s", adapter.ablage_mehrzahl, fehler
+                )
+                ablagen_fehler = str(fehler)
+
+        gewaehlt = einstellungen.get("board_ids") or []
+
         # Der Zustand in einem Wort, damit die Tabelle ihn nur anzeigen und
         # nicht selbst zusammenreimen muss. Die Reihenfolge ist die des
         # Weges: erst braucht es einen Adapter, dann ein Konto, dann muss
-        # der Kanal an dieser Kampagne eingeschaltet sein.
+        # der Kanal an dieser Kampagne eingeschaltet sein, und zuletzt
+        # braucht er ein Ziel.
         if eintrag_kanal.key not in BEKANNT:
             zustand, hinweis = "vorbereitet", "Für diesen Kanal gibt es noch keinen Adapter."
         elif eintrag_kanal.key not in AKTIV:
@@ -187,6 +210,14 @@ def kampagne(kampagne_id: int):
             zustand, hinweis = "kein Konto", "Unter Einstellungen verbinden. Ohne Konto überspringt der Zeitplan diesen Kanal."
         elif not verbindung:
             zustand, hinweis = "aus", "Für diese Kampagne noch nicht eingeschaltet."
+        elif adapter is not None and adapter.unterstuetzt_ablagen and not gewaehlt:
+            # **Kein „läuft".** Ohne Ziel kann der Kanal nichts posten, und
+            # das ist der Zustand, in dem man am ehesten glaubt, es liefe.
+            zustand = f"{adapter.ablage_bezeichnung} fehlt"
+            hinweis = (
+                f"Unten {adapter.ablage_bezeichnung.lower()} auswählen, sonst "
+                "geht kein Beitrag raus."
+            )
         else:
             zustand, hinweis = "läuft", ""
 
@@ -214,6 +245,9 @@ def kampagne(kampagne_id: int):
             "verbindung": verbindung,
             "einstellungen": einstellungen,
             "verbunden": verbunden,
+            "ablagen": ablagen,
+            "ablagen_fehler": ablagen_fehler,
+            "gewaehlt": gewaehlt,
             "zustand": zustand,
             "hinweis": hinweis,
             "varianten": fertig,
@@ -342,9 +376,21 @@ def kampagne_kanal(kampagne_id: int, channel_id: int):
             ),
         }
         if adapter.unterstuetzt_ablagen:
-            einstellungen["board_ids"] = formular.kennungen(
-                request.form.get("board_ids")
-            )
+            if request.form.get("ablagen_gewaehlt") == "ja":
+                # Die Auswahl aus Kästchen. `getlist` und nicht `get`: ohne
+                # das käme nur das erste Häkchen an, und wer drei Seiten
+                # anhakt, bespielt am Ende eine.
+                einstellungen["board_ids"] = formular.kennungen(
+                    "\n".join(request.form.getlist("board_ids"))
+                )
+            else:
+                # Das Textfeld. Steht noch da, solange kein Konto verbunden
+                # ist oder die Liste sich nicht abrufen ließ — dann darf ein
+                # Speichern die von Hand eingetragenen Kennungen nicht
+                # wegwerfen.
+                einstellungen["board_ids"] = formular.kennungen(
+                    request.form.get("board_ids")
+                )
         quelle = formular.aus_auswahl(
             request.form.get("content_source"), QUELLE, "Die Herkunft der Inhalte"
         )

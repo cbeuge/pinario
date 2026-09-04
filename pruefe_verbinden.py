@@ -485,6 +485,76 @@ def _messen(app, adapter, kanal_zeile, nutzer):  # noqa: C901
     pruefe("Zeitplan meldet den Kanal wieder als nicht verbunden",
            "Pinterest" in _ohne_konto(seite))
 
+    # --- Die Ablagen an der Kampagne ----------------------------------
+    #
+    # Kennungen abzutippen war ein Zwischenschritt, solange kein Konto
+    # verbunden war. Jetzt kommt die Liste vom Adapter und wird angehakt.
+    # Der teure Fehler dabei waere `get` statt `getlist`: dann kaeme nur
+    # das erste Haekchen an, und wer drei Seiten anhakt, bespielt eine.
+
+    from app.models import Campaign, CampaignChannel
+
+    client.post("/kanaele/pinterest/verbinden", data={"csrf_token": _token(client)})
+    client.get(f"/kanaele/pinterest/rueckruf?code=c&state={adapter.zustaende[-1]}")
+
+    kampagne = Campaign(name="Prüfung Ablagen", target_url="https://example.de",
+                        status="draft")
+    db.session.add(kampagne)
+    db.session.commit()
+
+    seite = client.get(f"/kampagnen/{kampagne.id}").data.decode()
+    pruefe("Die Ablagen des Kontos stehen zur Auswahl", "Ferienwohnung" in seite)
+    pruefe("Als Ankreuzfeld, nicht als Textfeld",
+           'name="board_ids" value="7"' in seite)
+    pruefe("Und die Verarbeitung weiss davon",
+           'name="ablagen_gewaehlt"' in seite)
+
+    client.post(
+        f"/kampagnen/{kampagne.id}/kanal/{kanal_zeile.id}",
+        data={
+            "csrf_token": _token(client),
+            "content_source": "ai_generated",
+            "posts_per_day": "3",
+            "zeit_von": "09:00",
+            "zeit_bis": "21:00",
+            "ablagen_gewaehlt": "ja",
+            "board_ids": ["7", "8"],
+        },
+    )
+    verbindung = db.session.scalar(
+        select(CampaignChannel).where(CampaignChannel.campaign_id == kampagne.id)
+    )
+    pruefe("Beide Haken kommen an, nicht nur der erste",
+           verbindung is not None
+           and (verbindung.settings or {}).get("board_ids") == ["7", "8"])
+
+    seite = client.get(f"/kampagnen/{kampagne.id}").data.decode()
+    pruefe("Ein Kanal mit Ziel steht auf 'läuft'", "läuft" in seite)
+
+    client.post(
+        f"/kampagnen/{kampagne.id}/kanal/{kanal_zeile.id}",
+        data={
+            "csrf_token": _token(client),
+            "content_source": "ai_generated",
+            "posts_per_day": "3",
+            "zeit_von": "09:00",
+            "zeit_bis": "21:00",
+            "ablagen_gewaehlt": "ja",
+        },
+    )
+    db.session.refresh(verbindung)
+    pruefe("Ohne Haken bleibt die Auswahl leer",
+           (verbindung.settings or {}).get("board_ids") == [])
+    seite = client.get(f"/kampagnen/{kampagne.id}").data.decode()
+    # Der Zustand, in dem man am ehesten glaubt, es liefe.
+    pruefe("Ein Kanal ohne Ziel steht NICHT auf 'läuft'",
+           "Board fehlt" in seite)
+
+    db.session.delete(verbindung)
+    db.session.delete(kampagne)
+    db.session.commit()
+    client.post("/kanaele/pinterest/trennen", data={"csrf_token": _token(client)})
+
     # --- Ein Kanal ohne Adapter ---------------------------------------
 
     # X ist der letzte ohne Adapter. Instagram und Facebook standen hier

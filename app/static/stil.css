@@ -430,3 +430,16 @@ code {
 }
 .kanaltabelle details > summary:hover { color: var(--text); }
 .kanaltabelle details[open] > summary { margin-bottom: .5rem; }
+
+/* Eine Liste zum Anhaken: Seiten, Boards, Konten. Scrollt, statt die
+   Maske zu sprengen — wer dreißig Seiten hat, soll das Formular darunter
+   noch sehen. */
+.auswahlliste {
+  max-height: 14rem;
+  overflow-y: auto;
+  padding: .4rem .6rem;
+  background: var(--flaeche);
+  border: 1px solid var(--rand);
+  border-radius: 8px;
+}
+.auswahlliste label.kasten { margin: .25rem 0; }

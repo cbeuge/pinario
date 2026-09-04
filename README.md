@@ -439,6 +439,22 @@ dann, wenn es einen Adapter gibt, der Kanal freigeschaltet ist und die
 Zugangsdaten der App hinterlegt sind. Ein Knopf, der sonst nur in eine
 Fehlermeldung führt, ist keine Hilfe.
 
+**Die Ablagen werden ausgewählt, nicht abgetippt.** Sobald ein Konto
+verbunden ist, holt die Kampagnen-Seite die Seiten, Boards oder Konten beim
+Adapter und zeigt sie zum Anhaken. Das Textfeld für Kennungen bleibt als
+Rückfall: solange kein Konto verbunden ist, und wenn der Abruf scheitert.
+Ein verstecktes Feld sagt der Verarbeitung, welche der beiden Formen kam —
+sonst wäre "nichts angehakt" nicht von "gar nicht angezeigt" zu
+unterscheiden, und ein Speichern würde die Auswahl stillschweigend leeren.
+
+Beim Auslesen `getlist` und nicht `get`: sonst kommt nur das erste Häkchen
+an, und wer drei Seiten anhakt, bespielt eine.
+
+**Ein Kanal ohne Ziel steht nicht auf „läuft"**, sondern auf „Seite fehlt"
+beziehungsweise „Board fehlt". Das ist der Zustand, in dem man am ehesten
+glaubt, es liefe — der Kanal ist eingeschaltet, ein Konto ist verbunden, und
+trotzdem kann nichts rausgehen.
+
 **Die Rückruf-Adresse kommt aus `OEFFENTLICHE_ADRESSE` in der `.env`**, nicht
 aus der laufenden Anfrage. Sie steht auf der Einstellungen-Seite zum
 Abschreiben und muss im Entwicklerbereich der Plattform **zeichengenau** so
