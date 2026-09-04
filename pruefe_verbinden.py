@@ -239,6 +239,23 @@ def main() -> int:  # noqa: C901
     return 0
 
 
+def _kasten(seite: str, kanal_key: str) -> str:
+    """Nur der Abschnitt der Seite, der zu diesem Kanal gehört.
+
+    Die Einstellungen-Seite zeigt **alle** Kanäle. Wer auf der ganzen Seite
+    nach "Konto verbinden" sucht, misst mit, ob ein anderer Kanal
+    Zugangsdaten hat — lokal steht dort nichts und die Prüfung besteht, auf
+    dem Server steht dort etwas und sie schlägt fehl. Genau so passiert am
+    04.09.2026.
+    """
+    marke = f'/kanaele/{kanal_key}/'
+    teile = seite.split('<section class="kanalkasten')
+    for teil in teile:
+        if marke in teil:
+            return teil
+    return ""
+
+
 def _ohne_konto(seite: str) -> str:
     """Die Kanaele, die die Zeitplan-Seite als unverbunden meldet."""
     treffer = re.search(r"Kein Konto verbunden: ([^.]*)\.", seite)
@@ -279,11 +296,11 @@ def _messen(app, adapter, kanal_zeile, nutzer):  # noqa: C901
     # --- Ohne Zugangsdaten kein Knopf ---------------------------------
 
     einstellungen.kanal_entferne("pinterest")
-    seite = client.get("/einstellungen").data.decode()
+    kasten = _kasten(client.get("/einstellungen").data.decode(), "pinterest")
     pruefe("Ohne Zugangsdaten steht 'Zugangsdaten fehlen'",
-           "Zugangsdaten fehlen" in seite)
+           "Zugangsdaten fehlen" in kasten)
     pruefe("Ohne Zugangsdaten kein Verbinden-Knopf",
-           "Konto verbinden" not in seite)
+           "Konto verbinden" not in kasten)
 
     antwort = client.post(
         "/kanaele/pinterest/verbinden", data={"csrf_token": _token(client)}
@@ -299,11 +316,12 @@ def _messen(app, adapter, kanal_zeile, nutzer):  # noqa: C901
         einstellungen.kanal_name("pinterest", "app_secret"), "geheim"
     )
     seite = client.get("/einstellungen").data.decode()
-    pruefe("Mit Zugangsdaten steht 'nicht verbunden'", "nicht verbunden" in seite)
+    kasten = _kasten(seite, "pinterest")
+    pruefe("Mit Zugangsdaten steht 'nicht verbunden'", "nicht verbunden" in kasten)
     pruefe("Mit Zugangsdaten steht der Verbinden-Knopf da",
-           "Konto verbinden" in seite)
+           "Konto verbinden" in kasten)
     pruefe("Die Rueckruf-Adresse steht zum Abschreiben da",
-           f"{ADRESSE}/kanaele/pinterest/rueckruf" in seite)
+           f"{ADRESSE}/kanaele/pinterest/rueckruf" in kasten)
     pruefe("Das Secret steht nicht im Klartext auf der Seite",
            "geheim" not in seite)
 
@@ -411,9 +429,9 @@ def _messen(app, adapter, kanal_zeile, nutzer):  # noqa: C901
     pruefe("Der Ablauf steht dran", konto and konto.expires_at is not None)
     pruefe("Die Seite sagt, wer verbunden ist", b"pinario" in antwort.data)
 
-    seite = client.get("/einstellungen").data.decode()
-    pruefe("Der Zustand steht jetzt auf 'verbunden'", "verbunden" in seite)
-    pruefe("Trennen steht da", "Trennen" in seite)
+    kasten = _kasten(client.get("/einstellungen").data.decode(), "pinterest")
+    pruefe("Der Zustand steht jetzt auf 'verbunden'", "verbunden" in kasten)
+    pruefe("Trennen steht da", "Trennen" in kasten)
 
     # --- Kein zweites Konto daneben -----------------------------------
 
