@@ -53,6 +53,41 @@
   {% endif %}
 </form>
 
+<h2>Eigene Datei hochladen</h2>
+
+<form method="post" enctype="multipart/form-data"
+      action="{{ url_for('haupt.variante_hochladen', verbindung_id=verbindung.id) }}"
+      class="maske eng">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+  <label for="datei">Bild oder Video</label>
+  <input type="file" id="datei" name="datei" required
+         accept="image/jpeg,image/png,image/gif,video/mp4,video/quicktime">
+  <p class="feldhilfe leise">
+    Für Material, das nicht hier entsteht — ein Video aus der Gemini-App zum
+    Beispiel. Erkannt wird das Format am Inhalt der Datei, nicht an ihrer
+    Endung.<br>
+    {{ verbindung.kanal.name }} nimmt hier
+    <strong>{{ typen_klartext }}</strong>.
+    {% if 'video' not in adapter.typen %}
+      Video geht noch nicht — der Upload zur Plattform läuft dort über einen
+      eigenen, mehrstufigen Weg, und der ist noch nicht gebaut.
+    {% endif %}
+  </p>
+
+  <label for="upload-titel">Titel</label>
+  <input type="text" id="upload-titel" name="titel" maxlength="255"
+         placeholder="kann auch später dazu">
+
+  <label for="upload-text">Beschreibung</label>
+  <textarea id="upload-text" name="beschreibung" rows="3" maxlength="4000"
+            placeholder="kann auch später dazu"></textarea>
+
+  <div class="knopfreihe">
+    <button type="submit">Hochladen</button>
+  </div>
+</form>
+
 {% if not gruppen %}
   <p class="leise">Noch keine Varianten.</p>
 {% endif %}

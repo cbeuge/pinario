@@ -480,6 +480,24 @@ def bild_ablegen(daten: bytes) -> str:
     return f"{unterordner}/{name}"
 
 
+def datei_ablegen(daten: bytes, endung: str) -> str:
+    """Legt eine hochgeladene Datei ab, wie ein erzeugtes Bild.
+
+    Eigener Unterordner, damit man Selbstgemachtes von Erzeugtem
+    unterscheiden kann, ohne in die Datenbank zu sehen. Der Name wird aus
+    demselben Grund gewürfelt wie oben: die Dateien liegen unter einer
+    öffentlich erreichbaren Adresse, damit die Plattformen sie abholen
+    können, und ein sprechender Name stünde damit im Netz.
+    """
+    ordner: Path = current_app.config["UPLOAD_ORDNER"]
+    unterordner = "hochgeladen"
+    (ordner / unterordner).mkdir(parents=True, exist_ok=True)
+
+    name = f"{uuid.uuid4().hex}.{endung.lstrip('.')}"
+    (ordner / unterordner / name).write_bytes(daten)
+    return f"{unterordner}/{name}"
+
+
 def variantengruppe() -> str:
     """Kennung für einen Schwung Varianten, die gegeneinander gemessen werden."""
     return secrets.token_hex(8)

@@ -47,7 +47,7 @@ import sys
 from datetime import timedelta
 
 from flask import g
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app import create_app
 from app.config import Config
@@ -76,6 +76,10 @@ class Adapter:
     # Muss dastehen wie beim echten Adapter: daraus baut sich die
     # form-action der CSP, siehe unten.
     anmelde_ursprung = "https://www.pinterest.com"
+    # Wie beim echten Adapter: nur Bild. Ohne das nimmt der Upload alles an,
+    # und die Pruefung "ein Video wird abgelehnt" misst nichts.
+    typen = ("image",)
+    max_beschreibung = 800
 
     def __init__(self):
         self.zustaende = []
@@ -554,6 +558,125 @@ def _messen(app, adapter, kanal_zeile, nutzer):  # noqa: C901
     db.session.delete(kampagne)
     db.session.commit()
     client.post("/kanaele/pinterest/trennen", data={"csrf_token": _token(client)})
+
+    # --- Eine eigene Datei hochladen ----------------------------------
+    #
+    # Der Weg fuer Material, das nicht hier entsteht. Zwei Dinge muessen
+    # sitzen: das Format wird am **Inhalt** erkannt und nicht am Namen, und
+    # ein Kanal darf nichts angenommen bekommen, was er nicht posten kann --
+    # sonst liegt die Datei da, die Variante sieht fertig aus, und der
+    # Zeitplan ueberspringt sie stillschweigend.
+
+    import io
+
+    from app.models import Campaign, CampaignChannel, ContentItem
+
+    kampagne = Campaign(name="Prüfung Upload", target_url="https://example.de",
+                        status="draft")
+    db.session.add(kampagne)
+    db.session.commit()
+    verbindung = CampaignChannel(
+        campaign_id=kampagne.id, channel_id=kanal_zeile.id,
+        content_source="upload", settings={},
+    )
+    db.session.add(verbindung)
+    db.session.commit()
+
+    import os
+
+    def _hochladen(name, inhalt, **felder):
+        daten = {"csrf_token": _token(client),
+                 "datei": (io.BytesIO(inhalt), name)}
+        daten.update(felder)
+        return client.post(
+            f"/kanal/{verbindung.id}/varianten/hochladen",
+            data=daten, content_type="multipart/form-data",
+            follow_redirects=True,
+        )
+
+    def _anzahl():
+        return db.session.scalar(
+            select(func.count(ContentItem.id))
+            .where(ContentItem.campaign_channel_id == verbindung.id)
+        ) or 0
+
+    # Die ersten Bytes eines JPG. Das Format wird am Inhalt erkannt.
+    JPG = bytes([0xFF, 0xD8, 0xFF, 0xE0]) + b"x" * 200
+
+    vorher = _anzahl()
+    antwort = _hochladen("foto.jpg", JPG, titel="Mein Bild")
+    pruefe("Ein Bild wird angenommen", _anzahl() == vorher + 1)
+    eintrag = db.session.scalars(
+        select(ContentItem)
+        .where(ContentItem.campaign_channel_id == verbindung.id)
+        .order_by(ContentItem.id.desc())
+    ).first()
+    pruefe("Es steht als Bild drin", eintrag is not None and eintrag.type == "image")
+    pruefe("Und als selbst hochgeladen, nicht als erzeugt",
+           eintrag is not None and eintrag.quelle == "upload")
+    pruefe("Der Titel kommt mit", eintrag is not None and eintrag.title == "Mein Bild")
+    pruefe("Es liegt unter hochgeladen/",
+           eintrag is not None and (eintrag.file_path or "").startswith("hochgeladen/"))
+    pruefe("Der Dateiname verraet den Titel nicht",
+           eintrag is not None and "Mein" not in (eintrag.file_path or ""))
+    pruefe("Neu ist immer draft, nicht freigegeben",
+           eintrag is not None and eintrag.status == "draft")
+
+    # Der teure Fall: eine umbenannte Datei.
+    vorher = _anzahl()
+    antwort = antwort = _hochladen("sieht_aus_wie.jpg", b"PK" + bytes([3, 4]) + b"x" * 200)
+    pruefe("Eine umbenannte Datei wird abgelehnt", _anzahl() == vorher)
+    pruefe("Und die Meldung sagt warum",
+           "weder ein Bild".encode() in antwort.data)
+
+    vorher = _anzahl()
+    _hochladen("leer.jpg", b"")
+    pruefe("Eine leere Datei wird abgelehnt", _anzahl() == vorher)
+
+    # Der zweite teure Fall: ein Kanal, der das gar nicht posten kann.
+    vorher = _anzahl()
+    antwort = _hochladen(
+        "clip.mp4", bytes([0, 0, 0, 0x20]) + b"ftypisom" + b"x" * 200
+    )
+    pruefe("Ein Video wird abgelehnt, solange der Kanal keins postet",
+           _anzahl() == vorher)
+    pruefe("Und die Meldung nennt, was der Kanal annimmt",
+           "Angenommen wird".encode() in antwort.data)
+
+    # Beim Loeschen einer Variante muss auch die Datei verschwinden, sonst
+    # fuellt sich der Ordner mit Bildern, die zu nichts mehr gehoeren.
+    vorher = _anzahl()
+    _hochladen("weg.jpg", JPG)
+    eintrag = db.session.scalars(
+        select(ContentItem)
+        .where(ContentItem.campaign_channel_id == verbindung.id)
+        .order_by(ContentItem.id.desc())
+    ).first()
+    pfad = os.path.join(app.config["UPLOAD_ORDNER"], *eintrag.file_path.split("/"))
+    pruefe("Die hochgeladene Datei liegt wirklich da", os.path.exists(pfad))
+    client.post(
+        f"/kanal/{verbindung.id}/varianten/{eintrag.id}",
+        data={"csrf_token": _token(client), "aktion": "loeschen"},
+    )
+    pruefe("Loeschen entfernt die Variante", _anzahl() == vorher)
+    pruefe("Und die Datei dazu", not os.path.exists(pfad))
+
+    # Auch die Dateien wegräumen, nicht nur die Zeilen. Ein Prüfskript, das
+    # bei jedem Lauf ein paar Bytes im Upload-Ordner liegen lässt, füllt ihn
+    # über Monate mit Müll, den niemand zuordnen kann.
+    wurzel = app.config["UPLOAD_ORDNER"]
+    for e in db.session.scalars(
+        select(ContentItem).where(ContentItem.campaign_channel_id == verbindung.id)
+    ):
+        if e.file_path:
+            try:
+                os.remove(os.path.join(wurzel, *e.file_path.split("/")))
+            except OSError:
+                pass
+        db.session.delete(e)
+    db.session.delete(verbindung)
+    db.session.delete(kampagne)
+    db.session.commit()
 
     # --- Ein Kanal ohne Adapter ---------------------------------------
 

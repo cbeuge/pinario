@@ -124,3 +124,67 @@ def kennungen(wert: str | None, *, max_stueck: int = 20) -> list[str]:
     if len(gesehen) > max_stueck:
         raise Ungueltig(f"Höchstens {max_stueck} Kennungen.")
     return gesehen
+
+
+# --- Hochgeladene Dateien ----------------------------------------------
+
+# Was angenommen wird, und woran man es erkennt. Die Endung allein reicht
+# nicht: sie steht im Dateinamen und den bestimmt der Absender. Geprüft wird
+# deshalb der Anfang der Datei — die ersten Bytes, an denen ein Format sich
+# ausweist.
+#
+# Der Grund ist nicht Sicherheit im engeren Sinn: die Dateien werden nie
+# ausgeführt, sie gehen an Pinterest und Meta. Aber eine kaputte oder
+# falsch benannte Datei fällt sonst erst dort auf, Tage später, als
+# gescheiterter Beitrag mit einer Fehlermeldung von der Plattform.
+BILD_ARTEN = {
+    b"\xff\xd8\xff": ("jpg", "image"),
+    b"\x89PNG\r\n\x1a\n": ("png", "image"),
+    b"GIF87a": ("gif", "image"),
+    b"GIF89a": ("gif", "image"),
+}
+# Bei MP4 und Konsorten steht die Kennung nicht ganz vorn, sondern nach vier
+# Bytes Längenangabe. Deshalb wird sie getrennt geprüft.
+VIDEO_KENNUNG = b"ftyp"
+
+# Grenzen, damit nicht versehentlich ein Rohschnitt hochgeht. Die Plattformen
+# nehmen mehr, aber alles darüber ist bei pinario ein Versehen.
+MAX_BILD = 20 * 1024 * 1024
+MAX_VIDEO = 200 * 1024 * 1024
+
+
+def datei_pruefen(datei) -> tuple[bytes, str, str]:
+    """Liest eine hochgeladene Datei und sagt, was sie ist.
+
+    Liefert Inhalt, Endung und Typ ("image" oder "video"). Wirft `Ungueltig`
+    mit einem Satz, der weiterhilft — die Meldung landet direkt vor dem
+    Nutzer und "ungültige Datei" wäre dort wertlos.
+    """
+    if datei is None or not getattr(datei, "filename", ""):
+        raise Ungueltig("Es wurde keine Datei ausgewählt.")
+
+    inhalt = datei.read()
+    if not inhalt:
+        raise Ungueltig("Die Datei ist leer.")
+
+    for kennung, (endung, typ) in BILD_ARTEN.items():
+        if inhalt.startswith(kennung):
+            if len(inhalt) > MAX_BILD:
+                raise Ungueltig(
+                    f"Das Bild ist größer als {MAX_BILD // 1024 // 1024} MB."
+                )
+            return inhalt, endung, typ
+
+    # MP4, MOV und Verwandte: die Kennung steht ab Byte 4.
+    if inhalt[4:8] == VIDEO_KENNUNG:
+        if len(inhalt) > MAX_VIDEO:
+            raise Ungueltig(
+                f"Das Video ist größer als {MAX_VIDEO // 1024 // 1024} MB."
+            )
+        return inhalt, "mp4", "video"
+
+    raise Ungueltig(
+        "Das ist weder ein Bild (JPG, PNG, GIF) noch ein Video (MP4, MOV). "
+        "Erkannt wird das am Inhalt der Datei, nicht an ihrer Endung — eine "
+        "umbenannte Datei hilft also nicht."
+    )

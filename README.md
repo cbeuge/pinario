@@ -298,6 +298,28 @@ venv\Scripts\python.exe pruefe_ki.py
 drinstehen, dass die Google-Regel nur bei Google auftaucht, und dass zu
 lange Antworten an der Wortgrenze gekürzt werden statt mitten im Wort.
 
+### Eigene Dateien hochladen
+
+Seit dem 04.09.2026 lässt sich unter `/kanal/<id>/varianten` eine eigene
+Datei als Variante anlegen — der Weg für Material, das nicht hier entsteht.
+Ein Video aus der Gemini-App zum Beispiel: erzeugen kostet dort nichts
+extra, und der Text lässt sich danach hier dazuschreiben oder erzeugen
+lassen.
+
+**Das Format wird am Inhalt erkannt, nicht an der Endung.** Die ersten Bytes
+weisen eine Datei aus; der Name kommt vom Absender. Eine umbenannte Datei
+fällt sonst erst bei der Plattform auf, Tage später, als gescheiterter
+Beitrag.
+
+**Und der Kanal wird vorher gefragt.** Ein Video an einen Kanal, der keins
+posten kann, wird gar nicht erst gespeichert: sonst läge die Datei da, die
+Variante sähe fertig aus, und der Zeitplan überspränge sie stillschweigend.
+Was ein Kanal annimmt, steht in `typen` — heute überall nur `image`.
+
+Beim Löschen einer Variante verschwindet auch die Datei. Sicher ist das,
+weil eine **veröffentlichte** Variante sich gar nicht löschen lässt; es kann
+also kein Bild verschwinden, das ein Kanal noch abholt.
+
 ### Die Anfrage fürs Bild ist eine eigene
 
 **Das kostete am 04.09.2026 einen halben Tag.** Vorher ging die komplette

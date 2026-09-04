@@ -3,6 +3,8 @@
 Der Zeitplan kommt als eigene Ansicht dazu.
 """
 
+from pathlib import Path
+
 from flask import (
     Blueprint,
     abort,
@@ -490,6 +492,12 @@ def varianten(verbindung_id: int):
         gruppen=_gruppen(verbindung, adapter),
         max_varianten=ki.MAX_VARIANTEN,
         kann_erzeugen=bool(einstellungen.gemini_herkunft()),
+        # Ausgeschrieben, weil "image, video" vor dem Nutzer nichts zu suchen
+        # hat. Die Liste kommt vom Kanal, nicht aus dem Template.
+        typen_klartext=", ".join(
+            {"image": "Bilder", "video": "Videos", "text": "reinen Text"}.get(t, t)
+            for t in adapter.typen
+        ),
     )
 
 
@@ -590,6 +598,95 @@ def varianten_erzeugen(verbindung_id: int):
     return redirect(url_for("haupt.varianten", verbindung_id=verbindung_id))
 
 
+def _datei_wegraeumen(pfad: str) -> None:
+    """Löscht eine Datei unterhalb des Upload-Ordners.
+
+    Der Pfad kommt aus der Datenbank und wird trotzdem geprüft: er wird an
+    den Upload-Ordner gehängt, und ein `..` darin zeigte sonst irgendwohin.
+    Dass dort heute nur eigene Werte stehen, ist kein Grund, es zu glauben.
+    """
+    wurzel = Path(current_app.config["UPLOAD_ORDNER"]).resolve()
+    ziel = (wurzel / pfad).resolve()
+    if not ziel.is_relative_to(wurzel):
+        current_app.logger.warning("Pfad zeigt aus dem Ordner heraus: %s", pfad)
+        return
+    try:
+        ziel.unlink()
+    except OSError as fehler:
+        # Kein Grund, den Nutzer zu behelligen: die Variante ist weg, nur
+        # ein paar Bytes bleiben liegen.
+        current_app.logger.warning("Datei nicht gelöscht: %s (%s)", pfad, fehler)
+
+
+@haupt.route("/kanal/<int:verbindung_id>/varianten/hochladen", methods=["POST"])
+@login_required
+def variante_hochladen(verbindung_id: int):
+    """Eine eigene Datei als neue Variante.
+
+    Der Weg für Material, das nicht hier entsteht — ein Video aus der
+    Gemini-App zum Beispiel. Der Text lässt sich danach von pinario erzeugen
+    oder selbst schreiben; erzeugt wird hier nichts, hochgeladen wird nur.
+    """
+    verbindung = _verbindung_holen(verbindung_id)
+    adapter = kanal(verbindung.kanal.key)
+    ziel = url_for("haupt.varianten", verbindung_id=verbindung_id)
+
+    try:
+        inhalt, endung, typ = formular.datei_pruefen(
+            request.files.get("datei")
+        )
+        titel = formular.text(
+            request.form.get("titel"), "Der Titel", max_laenge=255, pflicht=False
+        )
+        beschreibung = formular.text(
+            request.form.get("beschreibung"),
+            "Die Beschreibung",
+            max_laenge=4000,
+            pflicht=False,
+        )
+    except formular.Ungueltig as fehler:
+        flash(str(fehler), "fehler")
+        return redirect(ziel)
+
+    # **Vor dem Speichern prüfen, ob der Kanal das überhaupt annimmt.** Sonst
+    # liegt die Datei da, die Variante sieht fertig aus, und der Zeitplan
+    # überspringt sie stillschweigend — oder schlimmer, versucht es und
+    # brennt einen Fehlschlag in die Messreihe.
+    if typ not in adapter.typen:
+        wort = {"image": "Bild", "video": "Video", "text": "reinen Text"}
+        angenommen = ", ".join(wort.get(t, t) for t in adapter.typen)
+        flash(
+            f"{verbindung.kanal.name} nimmt hier kein {wort.get(typ, typ)}. "
+            f"Angenommen wird: {angenommen}.",
+            "fehler",
+        )
+        return redirect(ziel)
+
+    pfad = ki.datei_ablegen(inhalt, endung)
+    db.session.add(
+        ContentItem(
+            campaign_channel_id=verbindung.id,
+            type=typ,
+            title=titel or None,
+            description=beschreibung or None,
+            file_path=pfad,
+            variant_group=ki.variantengruppe(),
+            quelle="upload",
+            status="draft",
+        )
+    )
+    db.session.commit()
+    current_app.logger.info(
+        "Variante hochgeladen: %s für %s", typ, verbindung.kanal.key
+    )
+    flash(
+        "Hochgeladen. Titel und Beschreibung lassen sich unten bearbeiten; "
+        "freigegeben wird von Hand.",
+        "erfolg",
+    )
+    return redirect(ziel)
+
+
 @haupt.route(
     "/kanal/<int:verbindung_id>/varianten/<int:inhalt_id>", methods=["POST"]
 )
@@ -606,6 +703,8 @@ def variante_aendern(verbindung_id: int, inhalt_id: int):
     aktion = request.form.get("aktion", "speichern")
 
     if aktion == "loeschen":
+        # Den Pfad vorher merken: nach dem commit ist das Objekt weg.
+        datei = inhalt.file_path
         try:
             db.session.delete(inhalt)
             db.session.commit()
@@ -617,6 +716,17 @@ def variante_aendern(verbindung_id: int, inhalt_id: int):
                 "fehler",
             )
             return redirect(ziel)
+
+        # Erst die Zeile, dann die Datei. Andersherum stünde bei einem
+        # Fehler eine Variante ohne Bild da, und das sähe aus wie ein
+        # gescheitertes Erzeugen.
+        #
+        # Sicher ist das, weil eine **veröffentlichte** Variante sich gar
+        # nicht löschen lässt — die Datenbank weist es ab, siehe oben. Es
+        # kann also kein Bild verschwinden, das ein Kanal noch abholt.
+        if datei:
+            _datei_wegraeumen(datei)
+
         flash("Variante gelöscht.", "erfolg")
         return redirect(ziel)
 
