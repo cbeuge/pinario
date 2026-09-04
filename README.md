@@ -812,6 +812,23 @@ breit abgesichert, der Grund landet als Text in `posted_items.fehler` und
 ist auf `/zeitplan` zu lesen. Sonst verschluckt ein einzelner Fehlschlag die
 übrigen Beiträge des Tages.
 
+### An welchen Tagen
+
+Seit dem 04.09.2026 lässt sich je Kanal wählen, an **welchen Wochentagen**
+gepostet wird (`weekdays` in den Einstellungen, Montag ist 0 wie bei
+`date.weekday()`). „Zweimal die Woche, Mo und Do" heißt also: diese beiden
+Tage anhaken und einen Beitrag pro Tag. Vorher ging nur „X pro Tag", und
+drei am Tag sind für Facebook zu viel.
+
+**Eine fehlende oder leere Angabe heißt: an allen Tagen.** Das ist die
+wichtigste Zeile dieser Funktion. Alles, was vorher eingerichtet wurde, hat
+das Feld gar nicht — wäre leer gleich „nie", hörten diese Kanäle
+stillschweigend auf zu posten, und niemand sähe einen Fehler. Dasselbe gilt
+für unbrauchbare Werte: sie fallen auf „alle Tage" zurück, nicht auf keinen.
+Die Regel steht deshalb an beiden Stellen, im Formular und im Zeitplan, und
+`pruefe_zeitplan.py` misst beide Wege — `postet_am` allein nützt nichts,
+wenn `slots` die Antwort nicht beachtet.
+
 ### Wie die Termine liegen
 
 Gleichmäßig vom Beginn des Fensters aus, nicht über das ganze Fenster
