@@ -310,6 +310,7 @@ class Pinterest(Kanal):
         ziel_url: str,
         datei: str | None,
         ablage_id: str | None,
+        typ: str = "image",
     ) -> Veroeffentlichung:
         if not ablage_id:
             raise KanalFehler(

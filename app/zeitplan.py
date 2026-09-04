@@ -443,6 +443,8 @@ def _einen_posten(eintrag, verbindung, adapter, konto) -> bool:
             ziel_url=ziel,
             datei=eintrag.file_path,
             ablage_id=ablage,
+            # Aus der Datenbank, nicht aus der Dateiendung geraten.
+            typ=eintrag.type,
         )
     except Exception as fehler:  # noqa: BLE001
         # Breit gefangen, und das ist Absicht. Ein Adapter darf alles

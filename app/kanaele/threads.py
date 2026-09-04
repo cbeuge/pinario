@@ -281,6 +281,7 @@ class Threads(Kanal):
         ziel_url: str,
         datei: str | None,
         ablage_id: str | None,
+        typ: str = "image",
     ) -> Veroeffentlichung:
         # `ablage_id` wird bewusst ignoriert: der Kanal hat keine Ablagen,
         # und ein Wert darin wäre ein Missverständnis und kein Ziel.

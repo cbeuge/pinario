@@ -173,7 +173,18 @@ class Kanal:
         ziel_url: str,
         datei: str | None,
         ablage_id: str | None,
+        typ: str = "image",
     ) -> Veroeffentlichung:
+        """Schickt einen Beitrag raus.
+
+        `typ` ist "image" oder "video" und kommt aus `content_items.type`.
+        Er wird **übergeben und nicht aus der Dateiendung geraten**: der Typ
+        steht in der Datenbank, und zwei Wahrheiten über dieselbe Sache
+        laufen früher oder später auseinander.
+
+        Der Standard ist "image", damit ein Adapter, der nur Bilder kennt,
+        die Angabe schlicht ignorieren kann.
+        """
         raise NotImplementedError
 
     def zahlen(self, zugang: str, plattform_id: str) -> Zahlen:

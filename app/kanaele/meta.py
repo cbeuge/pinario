@@ -47,6 +47,15 @@ anklickbar, bei Instagram nicht — dort steht er zum Abtippen da. Beides
 steht als `link_im_text` und `link_klickbar` am Kanal und geht von dort in
 die Anfrage an das Modell.
 
+**Facebook postet seit dem 04.09.2026 auch Video**, Instagram noch nicht.
+Der Weg ist derselbe wie beim Foto: Facebook holt die Datei über `file_url`
+selbst ab. Der dreistufige Upload in Stücken wäre erst über 1 GB nötig, und
+so weit lässt pinario es nicht kommen. Zwei Unterschiede zum Foto: es geht
+an `/videos` statt `/photos`, und **ein Video hat ein eigenes Titelfeld** —
+der Titel wird dort zur Überschrift statt zur ersten Zeile des Textes.
+Danach verarbeitet Facebook das Video noch; erst wenn das durch ist, gilt
+der Beitrag als draußen.
+
 Stand 04.09.2026: gebaut und gegen untergeschobene Antworten geprüft
 (`pruefe_meta.py`). **Gegen die echte API ist noch nichts gelaufen**, dafür
 fehlt die App. Was hier steht, ist gegen die Dokumentation geschrieben und
@@ -80,6 +89,16 @@ GEDULD = 30
 # Normalfall.
 CONTAINER_VERSUCHE = 10
 CONTAINER_PAUSE = 3
+
+# Wie lange auf ein verarbeitetes Video gewartet wird. Grosszuegiger als
+# beim Bild-Container: Facebook rechnet an einem Video laenger, und ein zu
+# frueher Abbruch wuerde einen Beitrag als gescheitert fuehren, der gleich
+# darauf erscheint.
+VIDEO_VERSUCHE = 20
+VIDEO_PAUSE = 5
+
+# Facebook schneidet den Titel eines Videos hier ab.
+MAX_VIDEOTITEL = 255
 
 
 def _fehlertext(antwort) -> str:
@@ -398,11 +417,11 @@ class Facebook(MetaKanal):
             ablage_bezeichnung="Seite",
             ablage_mehrzahl="Seiten",
             anmelde_ursprung="https://www.facebook.com",
-            # Video braucht bei Meta einen eigenen, mehrstufigen Weg, und
-            # die Anwendung erzeugt bisher keine Videos. Dieselbe
-            # Entscheidung wie bei Pinterest, aus demselben Grund: sonst
-            # plant der Zeitplan etwas ein, das der Adapter ablehnt.
-            typen=("image",),
+            # **Video geht hier seit dem 04.09.2026.** Facebook holt die
+            # Datei über `file_url` ab, genau wie ein Foto — der
+            # dreistufige Upload in Stücken wäre erst über 1 GB nötig.
+            # Erzeugt werden Videos weiterhin nicht, hochgeladen schon.
+            typen=("image", "video"),
             # Eine Bildunterschrift bei Facebook darf sehr lang sein. Die
             # Grenze hier ist keine der Plattform, sondern eine des
             # Anstands: einen Beitrag, den niemand zu Ende liest, muss man
@@ -436,6 +455,7 @@ class Facebook(MetaKanal):
         ziel_url: str,
         datei: str | None,
         ablage_id: str | None,
+        typ: str = "image",
     ) -> Veroeffentlichung:
         if not ablage_id:
             raise KanalFehler(
@@ -443,21 +463,27 @@ class Facebook(MetaKanal):
                 "Kampagne."
             )
         if not datei:
-            raise KanalFehler("Ein Beitrag braucht ein Bild.")
+            raise KanalFehler("Ein Beitrag braucht ein Bild oder ein Video.")
 
-        # Der Titel steht bei Facebook nicht getrennt, es gibt nur einen
+        seiten_token = self._seiten_token(zugang, ablage_id)
+        if typ == "video":
+            return self._video_posten(
+                seiten_token, titel, beschreibung, ziel_url, datei, ablage_id
+            )
+
+        # Der Titel steht bei einem Foto nicht getrennt, es gibt nur einen
         # Text. Er kommt deshalb als erste Zeile davor — sonst wäre die
-        # Arbeit, die in ihn geflossen ist, hier einfach weg.
+        # Arbeit, die in ihn geflossen ist, hier einfach weg. Bei einem
+        # Video ist das anders, siehe unten.
         text = beschreibung or ""
         if titel:
             text = f"{titel}\n\n{text}".strip()
         text = _text_mit_link(text, ziel_url, self.max_beschreibung)
 
-        seiten_token = self._seiten_token(zugang, ablage_id)
         daten = _schicke(
             f"/{ablage_id}/photos",
             seiten_token,
-            url=bild_adresse(datei),
+            url=medien_adresse(datei),
             caption=text,
         )
 
@@ -470,6 +496,105 @@ class Facebook(MetaKanal):
                 "geliefert."
             )
         return Veroeffentlichung(plattform_id=kennung, ablage_id=str(ablage_id))
+
+    def _video_posten(
+        self,
+        seiten_token: str,
+        titel: str,
+        beschreibung: str,
+        ziel_url: str,
+        datei: str,
+        ablage_id: str,
+    ) -> Veroeffentlichung:
+        """Ein Video auf der Seite.
+
+        **Facebook holt die Datei selbst ab**, genau wie ein Foto — über
+        `file_url`. Das ist der einfache Weg und reicht bis 1 GB und 20
+        Minuten. Darüber verlangt Facebook einen dreistufigen Upload in
+        Stücken; das ist hier nicht gebaut, weil pinario keine Rohschnitte
+        verschickt (`formular.MAX_VIDEO` deckelt bei 200 MB).
+
+        **Ein Video hat ein eigenes Titelfeld**, anders als ein Foto. Der
+        Titel geht deshalb dorthin und nicht als erste Zeile in den Text —
+        er erscheint dann als Überschrift des Videos statt im Fließtext.
+        """
+        text = _text_mit_link(
+            (beschreibung or "").strip(), ziel_url, self.max_beschreibung
+        )
+
+        felder = {
+            "file_url": medien_adresse(datei),
+            "description": text,
+        }
+        if titel:
+            felder["title"] = titel[:MAX_VIDEOTITEL]
+
+        daten = _schicke(f"/{ablage_id}/videos", seiten_token, **felder)
+        video_id = str(daten.get("id") or daten.get("video_id") or "")
+        if not video_id:
+            raise KanalFehler(
+                "Facebook hat das Video angenommen, aber keine Kennung "
+                "geliefert."
+            )
+
+        # Facebook verarbeitet das Video, nachdem es geantwortet hat. Ohne
+        # diese Prüfung stünde der Beitrag als "gepostet" da, während er in
+        # Wahrheit an einer kaputten Datei gescheitert ist — und das fiele
+        # erst auf, wenn jemand auf die Seite schaut.
+        self._auf_video_warten(seiten_token, video_id)
+
+        # Für die Zahlen ist der Beitrag die richtige Kennung, nicht das
+        # Video. Beim Foto liefert Facebook sie mit; hier muss man
+        # nachfragen. Klappt das nicht, bleibt die Video-Kennung stehen —
+        # ein Beitrag ohne Zahlen ist besser als einer, der als gescheitert
+        # gilt, obwohl er draußen ist.
+        kennung = video_id
+        try:
+            weiteres = _hole(f"/{video_id}", seiten_token, fields="post_id")
+            kennung = str(weiteres.get("post_id") or video_id)
+        except KanalFehler as fehler:
+            current_app.logger.warning(
+                "Beitrags-Kennung zum Video %s nicht geholt: %s", video_id, fehler
+            )
+
+        return Veroeffentlichung(plattform_id=kennung, ablage_id=str(ablage_id))
+
+    def _auf_video_warten(self, token: str, video_id: str) -> None:
+        """Fragt ab, bis Facebook das Video verarbeitet hat.
+
+        `ready` heißt fertig, `error` ist endgültig. Bei `processing` wird
+        weiter gewartet. Läuft die Zeit ab, gilt der Beitrag trotzdem als
+        draußen: Facebook veröffentlicht ihn, sobald die Verarbeitung durch
+        ist, und ein zweiter Versuch würde das Video ein zweites Mal
+        hochladen.
+        """
+        for versuch in range(VIDEO_VERSUCHE):
+            try:
+                daten = _hole(f"/{video_id}", token, fields="status")
+            except KanalFehler:
+                # Kurz nach dem Upload antwortet Facebook auf diese Frage
+                # manchmal noch nicht. Kein Grund, den Beitrag zu verwerfen.
+                return
+
+            stand = daten.get("status")
+            wert = ""
+            if isinstance(stand, dict):
+                wert = str(stand.get("video_status") or "")
+
+            if wert in ("ready", "published", ""):
+                return
+            if wert == "error":
+                grund = ""
+                if isinstance(stand, dict):
+                    fehlerteil = stand.get("processing_phase") or {}
+                    if isinstance(fehlerteil, dict):
+                        grund = str(fehlerteil.get("errors") or "")
+                raise KanalFehler(
+                    "Facebook konnte das Video nicht verarbeiten"
+                    + (f": {grund}" if grund else ".")
+                )
+            if versuch < VIDEO_VERSUCHE - 1:
+                time.sleep(VIDEO_PAUSE)
 
     def zahlen(self, zugang: str, plattform_id: str) -> Zahlen:
         """Aufrufe und Klicks eines Beitrags.
@@ -605,7 +730,7 @@ class Instagram(MetaKanal):
         container = _schicke(
             f"/{ablage_id}/media",
             seiten_token,
-            image_url=bild_adresse(datei),
+            image_url=medien_adresse(datei),
             caption=text,
         )
         container_id = str(container.get("id") or "")
@@ -683,11 +808,11 @@ class Instagram(MetaKanal):
         )
 
 
-def bild_adresse(datei: str) -> str:
-    """Die öffentliche Adresse des Bildes.
+def medien_adresse(datei: str) -> str:
+    """Die öffentliche Adresse einer Datei, Bild wie Video.
 
-    Meta holt das Bild selbst ab, genau wie Pinterest, und dafür liefert
-    nginx `uploads/` unter `/medien/` ohne Anmeldung aus. **Vom
+    Meta holt sie selbst ab, genau wie Pinterest, und dafür liefert nginx
+    `uploads/` unter `/medien/` ohne Anmeldung aus. **Vom
     Entwicklungsrechner aus geht das nicht** — er ist von außen nicht
     erreichbar.
     """

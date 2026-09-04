@@ -150,7 +150,7 @@ def main() -> int:  # noqa: C901
     with app.test_request_context():
         # --- Was die Kanaele ueberhaupt annehmen ----------------------
 
-        pruefe("Facebook nimmt kein Video", "video" not in facebook.typen)
+        pruefe("Facebook nimmt Video", "video" in facebook.typen)
         pruefe("Instagram nimmt kein Video", "video" not in instagram.typen)
         pruefe("Facebook: Link gehoert in den Text", facebook.link_im_text)
         pruefe("Facebook: Link ist dort anklickbar", facebook.link_klickbar)
@@ -390,6 +390,93 @@ def main() -> int:  # noqa: C901
                   NUTZER_TOKEN, titel="t", beschreibung="b",
                   ziel_url="https://x.de", datei="a.png", ablage_id=SEITE),
               enthaelt="Permissions error")
+
+        # --- Facebook: ein Video --------------------------------------
+        #
+        # Facebook holt die Datei ueber `file_url` selbst ab, genau wie ein
+        # Foto. Der dreistufige Upload in Stuecken waere erst ueber 1 GB
+        # noetig. Zwei Dinge muessen dabei sitzen: der Beitrag geht an
+        # /videos und nicht an /photos, und der **Titel hat ein eigenes
+        # Feld** -- ein Video ist darin anders als ein Foto.
+
+        netz.antworten.clear()
+        netz.aufrufe.clear()
+        netz.stelle("/me/accounts", SEITEN_ANTWORT)
+        netz.stelle("/videos", Antwort(daten={"id": "vid-1"}))
+        netz.stelle("/vid-1", Antwort(daten={
+            "status": {"video_status": "ready"}, "post_id": f"{SEITE}_777",
+        }))
+
+        antwort = facebook.veroeffentlichen(
+            NUTZER_TOKEN,
+            titel="Gästemappe erklärt",
+            beschreibung="In 30 Sekunden.",
+            ziel_url="https://welcometap.de",
+            datei="hochgeladen/clip.mp4",
+            ablage_id=SEITE,
+            typ="video",
+        )
+        beitrag = _letzter(netz, "/videos")
+
+        pruefe("Ein Video geht an /videos, nicht an /photos",
+               beitrag["url"].endswith(f"/{SEITE}/videos"))
+        pruefe("Facebook holt die Datei selbst ab",
+               beitrag["data"]["file_url"]
+               == f"{ADRESSE}/medien/hochgeladen/clip.mp4")
+        pruefe("Auch das Video geht mit dem Seiten-Token raus",
+               beitrag["data"]["access_token"] == SEITEN_TOKEN)
+        # Der Unterschied zum Foto.
+        pruefe("Der Titel hat beim Video ein eigenes Feld",
+               beitrag["data"].get("title") == "Gästemappe erklärt")
+        pruefe("Und steht deshalb NICHT im Text",
+               "Gästemappe erklärt" not in beitrag["data"]["description"])
+        pruefe("Der Ziel-Link steht im Text",
+               "https://welcometap.de" in beitrag["data"]["description"])
+        pruefe("Der Status wird abgefragt, bevor der Beitrag als raus gilt",
+               any(a["url"].endswith("/vid-1") for a in netz.aufrufe))
+        # Fuer die Zahlen ist der Beitrag die richtige Kennung, nicht das
+        # Video.
+        pruefe("Zurueck kommt die Beitrags-Kennung, nicht die des Videos",
+               antwort.plattform_id == f"{SEITE}_777")
+
+        netz.stelle("/vid-1", Antwort(daten={
+            "status": {"video_status": "error",
+                       "processing_phase": {"errors": "Format nicht lesbar"}},
+        }))
+        wirft("Ein Video, das Facebook nicht verarbeiten kann, gilt nicht als raus",
+              lambda: facebook.veroeffentlichen(
+                  NUTZER_TOKEN, titel="t", beschreibung="b",
+                  ziel_url="https://x.de", datei="a.mp4", ablage_id=SEITE,
+                  typ="video"),
+              enthaelt="Format nicht lesbar")
+
+        netz.stelle("/vid-1", Antwort(daten={"status": {"video_status": "ready"}}))
+        antwort = facebook.veroeffentlichen(
+            NUTZER_TOKEN, titel="", beschreibung="b",
+            ziel_url="https://x.de", datei="a.mp4", ablage_id=SEITE, typ="video",
+        )
+        pruefe("Ohne post_id bleibt die Video-Kennung stehen",
+               antwort.plattform_id == "vid-1")
+        pruefe("Ohne Titel geht kein leeres Titelfeld mit",
+               "title" not in _letzter(netz, "/videos")["data"])
+
+        netz.stelle("/videos", Antwort(daten={}))
+        wirft("Ein Video ohne Kennung wird abgelehnt",
+              lambda: facebook.veroeffentlichen(
+                  NUTZER_TOKEN, titel="t", beschreibung="b",
+                  ziel_url="https://x.de", datei="a.mp4", ablage_id=SEITE,
+                  typ="video"),
+              enthaelt="keine Kennung")
+
+        # Ohne `typ` bleibt es beim Foto -- sonst waere jeder bestehende
+        # Aufruf plötzlich ein Video.
+        netz.stelle("/photos", Antwort(daten={"post_id": f"{SEITE}_1"}))
+        facebook.veroeffentlichen(
+            NUTZER_TOKEN, titel="t", beschreibung="b",
+            ziel_url="https://x.de", datei="a.png", ablage_id=SEITE,
+        )
+        pruefe("Ohne Typ-Angabe geht es weiter an /photos",
+               _letzter(netz, "/photos")["url"].endswith("/photos"))
 
         # --- Instagram posten -----------------------------------------
 

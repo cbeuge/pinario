@@ -719,8 +719,19 @@ Facebook eine eigene Vorschaukarte aus der Zielseite, und das selbst
 erzeugte Bild taucht gar nicht auf. Genau dieses Bild ist aber der Grund,
 warum es pinario gibt.
 
-**Video geht bei beiden nicht**, aus demselben Grund wie bei Pinterest: der
-Weg dafür ist mehrstufig, und die Anwendung erzeugt bisher keine Videos.
+**Facebook postet seit dem 04.09.2026 auch Video**, Instagram noch nicht.
+Der Weg ist derselbe wie beim Foto: Facebook holt die Datei über `file_url`
+selbst ab, der dreistufige Upload in Stücken wäre erst über 1 GB nötig.
+Zwei Unterschiede: es geht an `/videos` statt `/photos`, und **ein Video hat
+ein eigenes Titelfeld** — dort wird der Titel zur Überschrift statt zur
+ersten Zeile des Textes. Danach verarbeitet Facebook noch; erst wenn das
+durch ist, gilt der Beitrag als draußen. Ohne diese Prüfung stünde ein
+Beitrag als „gepostet" da, der an einer kaputten Datei gescheitert ist.
+
+**Welcher Typ kommt, sagt der Zeitplan** (`typ` an `veroeffentlichen`, aus
+`content_items.type`) und nicht die Dateiendung. Der Typ steht in der
+Datenbank; zwei Wahrheiten über dieselbe Sache laufen früher oder später
+auseinander.
 
 **Die Kennzahlen sind der wackligste Teil.** Meta räumt dort laufend um,
 `post_impressions` verschwindet 2026 und `impressions` ist bei Instagram
