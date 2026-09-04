@@ -112,7 +112,7 @@ migrations/       Alembic
 pruefe_rechtstext.py  misst den HTML-Säuberer nach (37 Fälle)
 pruefe_ki.py          misst die Anfrage an Gemini nach (28 Fälle)
 pruefe_zeitplan.py    misst das Rechnen der Termine nach (20 Fälle)
-pruefe_pinterest.py   misst den Adapter nach, ohne Netz (60 Fälle)
+pruefe_pinterest.py   misst den Adapter nach, ohne Netz (67 Fälle)
 pruefe_verbinden.py   misst den Verbinden-Weg nach, braucht die Datenbank
                       (44 Fälle)
 ```
@@ -428,7 +428,7 @@ und merkt es 30 Tage später.
 Nachgemessen ohne Netz und ohne Schlüssel:
 
 ```
-venv\Scripts\python.exe pruefe_pinterest.py    60 Fälle, Adapter allein
+venv\Scripts\python.exe pruefe_pinterest.py    67 Fälle, Adapter allein
 venv\Scripts\python.exe pruefe_verbinden.py    44 Fälle, gegen die Anwendung
 ```
 
@@ -463,6 +463,29 @@ der Verlaufsdatei der Shell. Der Befehl fragt damit zuerst `/user_account`
 ab und **speichert erst, wenn Pinterest antwortet** — ein Token, das nicht
 angenommen wird, soll gar nicht erst in der Datenbank landen, sonst hielte
 der Zeitplan den Kanal für verbunden.
+
+**Die Falle beim Einfügen** (am 04.09.2026 einmal voll hineingelaufen):
+Terminals umschließen eingefügten Text mit unsichtbaren Steuerzeichen,
+`ESC[200~` davor und `ESC[201~` dahinter — "Bracketed Paste". Bei einem
+versteckten Eingabefeld sieht man davon nichts. Die Sequenz landet im
+`Authorization`-Kopf, und Pinterest antwortet darauf **nicht** mit "Token
+ungültig", sondern mit einer HTML-Fehlerseite seines CDN und einem 400, die
+über die Ursache gar nichts sagt:
+
+```
+Error: Pinterest antwortete mit 400: <HTML><HEAD><TITLE>Error</TITLE>...
+```
+
+Der Befehl räumt solche Zeichen jetzt weg und **sagt, wie viele es waren**.
+Steht dort eine Zahl, war es das. Danach nennt er Länge und Anfang des
+Tokens, damit man sieht, ob es vollständig angekommen ist. Wer ganz
+sichergehen will, nimmt `--datei` und umgeht das Terminal:
+
+```
+venv\Scripts\python.exe -m flask --app wsgi token-eintragen pinterest --datei token.txt
+```
+
+Die Datei danach löschen, darin steht ein gültiger Zugang.
 
 Ein so eingetragenes Token hat kein Erneuerungs-Token und keinen bekannten
 Ablauf. Es steht deshalb ohne `expires_at` da, damit der Zeitplan nicht

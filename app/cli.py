@@ -1,5 +1,8 @@
 """Befehle für die Kommandozeile, aufrufbar mit `flask <name>`."""
 
+import pathlib
+import re
+
 import click
 from flask import Flask
 from sqlalchemy import select
@@ -8,6 +11,41 @@ from .auth import MIN_PASSWORTLAENGE, passwort_setzen
 from .extensions import db
 from .kanaele import ALLE
 from .models import Channel, User
+
+
+# Was ein Terminal beim Einfuegen mitschickt, ohne dass man es sieht.
+# "Bracketed Paste": der eingefuegte Text wird in ESC[200~ und ESC[201~
+# eingefasst, damit ein Programm Eingetipptes von Eingefuegtem
+# unterscheiden kann. Bei einem versteckten Eingabefeld sieht man davon
+# nichts, und die Sequenz landet mitten im Wert.
+_EINFUEGE_MARKER = re.compile(r"\x1b\[20[01]~")
+
+
+def _token_saeubern(roh: str) -> tuple[str, int]:
+    """Macht aus einer Eingabe ein Token und zählt, was weg musste.
+
+    Der Grund ist ein Fehler, der eine halbe Stunde kostet: ein Token mit
+    Einfüge-Markern darin ergibt einen syntaktisch kaputten
+    `Authorization`-Kopf. Pinterest antwortet darauf nicht mit "Token
+    ungültig", sondern mit einer HTML-Fehlerseite seines CDN und einem 400 —
+    und die sagt über die eigentliche Ursache gar nichts.
+
+    Geprüft wird über `isprintable`, nicht über eine Liste verbotener
+    Zeichen: ein Token besteht aus druckbaren Zeichen ohne Leerraum, und was
+    das nicht ist, gehört nicht hinein. Eine Verbotsliste vergisst immer
+    eins.
+    """
+    # Leerraum aussen zaehlt nicht mit: ein Zeilenende gehoert zur Eingabe
+    # und ist kein Grund fuer eine Warnung. Gemeldet wird nur, was mitten im
+    # Wert stand und dort nichts verloren hat.
+    roh = (roh or "").strip()
+    ohne_marker = _EINFUEGE_MARKER.sub("", roh)
+    sauber = "".join(
+        zeichen
+        for zeichen in ohne_marker
+        if zeichen.isprintable() and not zeichen.isspace()
+    )
+    return sauber, len(roh) - len(sauber)
 
 
 def befehle_registrieren(app: Flask) -> None:
@@ -91,12 +129,17 @@ def befehle_registrieren(app: Flask) -> None:
 
     @app.cli.command("token-eintragen")
     @click.argument("kanal_key")
+    @click.option(
+        "--datei", type=click.Path(exists=True, dir_okay=False),
+        help="Das Token aus einer Datei lesen statt es einzutippen. Der "
+             "zuverlässigste Weg über ssh, siehe die Anmerkung zum Einfügen.",
+    )
     @click.password_option(
-        "--token", prompt="Zugriffstoken", confirmation_prompt=False,
+        "--token", prompt=False, confirmation_prompt=False,
         help="Wird abgefragt statt als Argument genommen, damit es nicht in "
              "der Verlaufsdatei der Shell landet.",
     )
-    def token_eintragen(kanal_key: str, token: str) -> None:
+    def token_eintragen(kanal_key: str, datei: str | None, token: str) -> None:
         """Trägt ein von Hand erzeugtes Zugriffstoken als Konto ein.
 
         Für den Fall, dass eine Plattform ein Token zum Ausprobieren
@@ -112,9 +155,23 @@ def befehle_registrieren(app: Flask) -> None:
         from .kanaele import BEKANNT, KanalFehler, kanal
         from .models import Account
 
-        token = (token or "").strip()
+        if datei:
+            token = pathlib.Path(datei).read_text(encoding="utf-8")
+        elif not token:
+            token = click.prompt("Zugriffstoken", hide_input=True, default="")
+
+        token, entfernt = _token_saeubern(token)
         if not token:
             raise click.ClickException("Kein Token eingegeben.")
+        if entfernt:
+            # Muss dastehen. Wer nicht weiß, dass etwas entfernt wurde,
+            # sucht den Fehler später im Token statt im Terminal.
+            click.echo(
+                f"Hinweis: {entfernt} unsichtbare(s) Zeichen entfernt. Beim "
+                "Einfügen schickt das Terminal Steuerzeichen mit, die sonst "
+                "im Kopf der Anfrage landen."
+            )
+        click.echo(f"Token: {len(token)} Zeichen, beginnt mit {token[:5]}…")
         if kanal_key not in BEKANNT:
             raise click.ClickException(
                 f"Für '{kanal_key}' gibt es keinen Adapter. Bekannt: "
@@ -157,6 +214,11 @@ def befehle_registrieren(app: Flask) -> None:
             "laesst sich nicht erneuern. Sobald die App freigeschaltet ist, "
             "ueber /einstellungen richtig verbinden."
         )
+        if datei:
+            click.echo(
+                f"Die Datei {datei} enthaelt jetzt ein gueltiges Token. "
+                "Loeschen."
+            )
 
     @app.cli.command("kanaele-abgleichen")
     def kanaele_abgleichen() -> None:

@@ -105,6 +105,38 @@ def wirft(name: str, aufruf, *, enthaelt: str = "") -> None:
     pruefe(f"{name} (kein Fehler geworfen)", False)
 
 
+def _pruefe_token_saeubern() -> None:
+    """Das Token, das von Hand eingetragen wird.
+
+    Am 04.09.2026 ist genau das schiefgegangen: beim Einfuegen in ein
+    Terminal umschliesst "Bracketed Paste" den Text mit ESC[200~ und
+    ESC[201~. Bei einem versteckten Eingabefeld sieht man das nicht, die
+    Sequenz landet im `Authorization`-Kopf, und Pinterest antwortet nicht mit
+    "Token ungueltig", sondern mit einer HTML-Fehlerseite seines CDN und
+    einem 400. Die sagt ueber die Ursache gar nichts.
+    """
+    from app.cli import _token_saeubern
+
+    esc = chr(27)
+    faelle = [
+        ("Einfuege-Marker fliegen raus",
+         esc + "[200~pina_ABC123" + esc + "[201~", "pina_ABC123", 12),
+        ("Zeilenende zaehlt nicht als Fund",
+         "pina_ABC123" + chr(10), "pina_ABC123", 0),
+        ("Auch nicht unter Windows",
+         "pina_ABC123" + chr(13) + chr(10), "pina_ABC123", 0),
+        ("Leerraum aussen zaehlt nicht", "  pina_ABC123  ", "pina_ABC123", 0),
+        ("Ein sauberes Token bleibt, wie es ist",
+         "pina_ABC123", "pina_ABC123", 0),
+        ("Leerzeichen mitten drin wird gemeldet",
+         "pina_ABC 123", "pina_ABC123", 1),
+        ("Nichts bleibt nichts", "", "", 0),
+    ]
+    for name, roh, erwartet, anzahl in faelle:
+        sauber, gefunden = _token_saeubern(roh)
+        pruefe(name, sauber == erwartet and gefunden == anzahl)
+
+
 def main() -> int:  # noqa: C901
     app = create_app(TestConfig)
     adapter = Pinterest()
@@ -374,6 +406,8 @@ def main() -> int:  # noqa: C901
         }}}))
         pruefe("Unlesbare Kennzahl wird zu Null",
                adapter.zahlen(ZUGANG, "p").impressions == 0)
+
+    _pruefe_token_saeubern()
 
     fehler = [name for name, gut in ergebnisse if not gut]
     for name, gut in ergebnisse:
