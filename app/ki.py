@@ -68,6 +68,7 @@ def anfrage_bauen(
     affiliate_erlaubt: bool,
     link_im_text: bool = False,
     link_klickbar: bool = True,
+    zu_vorlage: bool = False,
 ) -> str:
     """Baut den Anfragetext. Ohne Netz, damit er sich prüfen lässt.
 
@@ -79,6 +80,17 @@ def anfrage_bauen(
 
     zeilen = [
         f"Du schreibst {anzahl} Vorschläge für einen Beitrag auf {kanal_name}.",
+    ]
+    if zu_vorlage:
+        # Ohne diese Zeilen sieht das Modell das Bild zwar, hält es aber für
+        # Beiwerk und schreibt am Motiv vorbei.
+        zeilen += [
+            "",
+            "**Oben steht das Bild, um das es geht.** Sieh es dir an und",
+            "schreib die Vorschläge dazu: was darauf zu sehen ist, gehört in",
+            "den Text. Erfinde nichts hinein, was nicht darauf ist.",
+        ]
+    zeilen += [
         "",
         "Das ist bekannt, und mehr ist nicht bekannt:",
         f"- Kampagne: {kampagne_name}",
@@ -246,8 +258,41 @@ def _uebersetze(fehler: Exception) -> KIFehler:
     return KIFehler(f"Gemini hat nicht geantwortet: {text}")
 
 
-def texte_erzeugen(anfrage: str, *, anzahl: int, max_beschreibung: int) -> list[Variante]:
-    """Holt `anzahl` Vorschläge. Wirft KIFehler, statt Halbes zu liefern."""
+# Woran ein Bild sich ausweist, und was Gemini dafür als Typ erwartet.
+# Abgeleitet aus den ersten Bytes und nicht aus dem Dateinamen — derselbe
+# Grund wie in `formular.datei_pruefen`, nur andersherum: hier soll dem
+# Modell nichts Falsches angesagt werden.
+_BILDTYPEN = (
+    (bytes([0xFF, 0xD8, 0xFF]), "image/jpeg"),
+    (bytes([0x89]) + b"PNG", "image/png"),
+    (b"GIF8", "image/gif"),
+    (b"RIFF", "image/webp"),
+)
+
+
+def _mime(daten: bytes) -> str:
+    for kennung, typ in _BILDTYPEN:
+        if daten.startswith(kennung):
+            return typ
+    # Im Zweifel PNG: das ist, was pinario selbst erzeugt.
+    return "image/png"
+
+
+def texte_erzeugen(
+    anfrage: str,
+    *,
+    anzahl: int,
+    max_beschreibung: int,
+    bild: bytes | None = None,
+) -> list[Variante]:
+    """Holt `anzahl` Vorschläge. Wirft KIFehler, statt Halbes zu liefern.
+
+    `bild` ist die hochgeladene Datei, zu der der Text passen soll. **Sie
+    geht wirklich an das Modell**, nicht nur ihr Name: sonst beschreibt der
+    Text irgendetwas zum Thema, während daneben ein ganz anderes Bild steht.
+    Genau das war bis zum 04.09.2026 der Fall — hochgeladene Dateien wurden
+    beim Erzeugen schlicht übergangen.
+    """
     if not MIN_VARIANTEN <= anzahl <= MAX_VARIANTEN:
         raise KIFehler(
             f"Zwischen {MIN_VARIANTEN} und {MAX_VARIANTEN} Varianten auf einmal."
@@ -259,9 +304,18 @@ def texte_erzeugen(anfrage: str, *, anzahl: int, max_beschreibung: int) -> list[
     try:
         from google.genai import types
 
+        inhalte = [anfrage]
+        if bild:
+            # Das Bild vor den Text: das Modell soll es ansehen und dann
+            # schreiben, nicht umgekehrt.
+            inhalte = [
+                types.Part.from_bytes(data=bild, mime_type=_mime(bild)),
+                anfrage,
+            ]
+
         antwort = klient.models.generate_content(
             model=modell,
-            contents=anfrage,
+            contents=inhalte,
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
                 response_schema=SCHEMA,

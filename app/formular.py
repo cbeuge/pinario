@@ -34,6 +34,23 @@ def ziel_adresse(wert: str | None) -> str:
     Tage später auf, wenn niemand mehr weiß, woran es lag.
     """
     geputzt = text(wert, "Der Ziel-Link", max_laenge=2000)
+
+    # **Fehlt das Schema, wird https:// ergänzt** statt abzulehnen. Niemand
+    # tippt es freiwillig, und die Ablehnung war eine Hürde ohne Gewinn: was
+    # die Prüfung wirklich verhindern soll, ist eine Adresse, die *ohne*
+    # Schema in einem Pin landet — und genau das passiert jetzt nicht mehr,
+    # weil hier eine vollständige herauskommt.
+    #
+    # Nur wenn schon ein anderes Schema dasteht (`ftp:`, `javascript:`),
+    # wird abgelehnt. Das ist der Fall, den man nicht stillschweigend
+    # überschreiben darf.
+    if "://" not in geputzt:
+        if ":" in geputzt.split("/")[0]:
+            raise Ungueltig(
+                "Der Ziel-Link muss mit http:// oder https:// anfangen."
+            )
+        geputzt = "https://" + geputzt.lstrip("/")
+
     zerlegt = urlparse(geputzt)
     if zerlegt.scheme not in ("http", "https"):
         raise Ungueltig(
@@ -41,6 +58,12 @@ def ziel_adresse(wert: str | None) -> str:
         )
     if not zerlegt.netloc:
         raise Ungueltig("Im Ziel-Link fehlt die Adresse, z. B. pinario.de.")
+    # Ohne Punkt ist es kein Name, sondern ein Tippfehler. Ein Pin, der auf
+    # "welcometap" zeigt, führt nirgendwohin und fällt erst spät auf.
+    if "." not in zerlegt.netloc:
+        raise Ungueltig(
+            "Im Ziel-Link fehlt die Endung, z. B. pinario.de statt pinario."
+        )
     return geputzt
 
 

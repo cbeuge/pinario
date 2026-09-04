@@ -53,7 +53,8 @@ from app import create_app
 from app.config import Config
 from app.extensions import db
 from app.kanaele import BEKANNT, KanalFehler, anmelde_urspruenge
-from app.models import Account, Channel, User
+from app.kanaele.basis import Kanal
+from app.models import Account, Channel, ContentItem, User
 from app.zeit import jetzt
 
 ADRESSE = "https://pinario.example"
@@ -65,23 +66,31 @@ class TestConfig(Config):
     WTF_CSRF_ENABLED = False
 
 
-class Adapter:
-    """Steht anstelle des echten Pinterest-Adapters."""
+class Adapter(Kanal):
+    """Steht anstelle des echten Pinterest-Adapters.
 
-    key = "pinterest"
-    name = "Pinterest"
-    unterstuetzt_ablagen = True
-    ablage_bezeichnung = "Board"
-    ablage_mehrzahl = "Boards"
-    # Muss dastehen wie beim echten Adapter: daraus baut sich die
-    # form-action der CSP, siehe unten.
-    anmelde_ursprung = "https://www.pinterest.com"
-    # Wie beim echten Adapter: nur Bild. Ohne das nimmt der Upload alles an,
-    # und die Pruefung "ein Video wird abgelehnt" misst nichts.
-    typen = ("image",)
-    max_beschreibung = 800
+    **Erbt von `Kanal` und baut die Eigenschaften nicht nach.** Vorher stand
+    hier eine Handvoll Klassenattribute, und bei jeder neuen Eigenschaft am
+    Kanal fehlte eine davon -- der Fehler sah dann aus wie ein Fehler in der
+    Anwendung. Was hier ueberschrieben wird, sind nur die Methoden, die ins
+    Netz gehen wuerden.
+    """
 
     def __init__(self):
+        super().__init__(
+            key="pinterest",
+            name="Pinterest",
+            unterstuetzt_ablagen=True,
+            ablage_bezeichnung="Board",
+            ablage_mehrzahl="Boards",
+            # Muss dastehen wie beim echten Adapter: daraus baut sich die
+            # form-action der CSP, siehe unten.
+            anmelde_ursprung="https://www.pinterest.com",
+            # Nur Bild, wie der echte. Ohne das nimmt der Upload alles an
+            # und die Pruefung "ein Video wird abgelehnt" misst nichts.
+            typen=("image",),
+            max_beschreibung=800,
+        )
         self.zustaende = []
         self.codes = []
         self.wirft = None
@@ -217,16 +226,18 @@ def main() -> int:  # noqa: C901
         try:
             _messen(app, adapter, kanal_zeile, nutzer)
         finally:
+            # **Hier und nicht am Ende von `_messen`.** Bricht die Messung
+            # mittendrin ab -- bei einem Gegentest zum Beispiel --, bleiben
+            # sonst Kampagnen, Varianten und Dateien liegen. Genau das ist
+            # am 04.09.2026 passiert: fuenf Wegwerf-Kampagnen und zehn
+            # verwaiste Bilder, die niemand mehr zuordnen konnte.
+            _aufraeumen(app, kanal_zeile)
             einstellungen.kanal_entferne("pinterest")
             for name, wert in vorherige_daten.items():
                 if wert:
                     einstellungen.setze(
                         einstellungen.kanal_name("pinterest", name), wert
                     )
-            for eintrag in db.session.scalars(
-                select(Account).where(Account.channel_id == kanal_zeile.id)
-            ):
-                db.session.delete(eintrag)
             db.session.commit()
             BEKANNT["pinterest"] = echt
 
@@ -241,6 +252,48 @@ def main() -> int:  # noqa: C901
         return 1
     print(f"Alle {len(ergebnisse)} Prüfungen bestanden.")
     return 0
+
+
+def _aufraeumen(app, kanal_zeile) -> None:
+    """Raeumt weg, was die Messung angelegt hat -- auch nach einem Abbruch.
+
+    Erkannt wird es am Namen: alle Wegwerf-Kampagnen dieses Skripts heissen
+    "Prüfung ...". Eine echte Kampagne heisst nie so, und der Filter ist
+    deutlich sicherer als eine Liste von Kennungen, die bei einem Abbruch
+    mitten im Lauf unvollstaendig waere.
+    """
+    import os
+
+    from app.models import Campaign
+
+    wurzel = app.config["UPLOAD_ORDNER"]
+    db.session.rollback()
+
+    for kampagne in db.session.scalars(
+        select(Campaign).where(Campaign.name.like("Prüfung %"))
+    ):
+        for verbindung in list(kampagne.kanaele):
+            for eintrag in db.session.scalars(
+                select(ContentItem).where(
+                    ContentItem.campaign_channel_id == verbindung.id
+                )
+            ):
+                if eintrag.file_path:
+                    try:
+                        os.remove(
+                            os.path.join(wurzel, *eintrag.file_path.split("/"))
+                        )
+                    except OSError:
+                        pass
+                db.session.delete(eintrag)
+            db.session.delete(verbindung)
+        db.session.delete(kampagne)
+
+    for konto in db.session.scalars(
+        select(Account).where(Account.channel_id == kanal_zeile.id)
+    ):
+        db.session.delete(konto)
+    db.session.commit()
 
 
 def _kasten(seite: str, kanal_key: str) -> str:
@@ -642,6 +695,149 @@ def _messen(app, adapter, kanal_zeile, nutzer):  # noqa: C901
            _anzahl() == vorher)
     pruefe("Und die Meldung nennt, was der Kanal annimmt",
            "Angenommen wird".encode() in antwort.data)
+
+    # --- Textvorschlaege zur hochgeladenen Datei ----------------------
+    #
+    # Der Kern von Carstens Rueckmeldung am 04.09.2026: hochgeladen wurde,
+    # aber der KI-Schritt fehlte -- und "Erzeugen" daneben ignorierte die
+    # eigene Datei komplett. Jetzt entstehen mehrere Texte **zu derselben
+    # Datei**, damit die Auswertung spaeter den Text misst und nicht das
+    # Bild.
+
+    import app.ki as ki_modul
+
+    echte_texte = ki_modul.texte_erzeugen
+    gesehen = {}
+
+    def _texte(anfrage, *, anzahl, max_beschreibung, bild=None):
+        gesehen["anfrage"] = anfrage
+        gesehen["bild"] = bild
+        return [
+            ki_modul.Variante(titel=f"Titel {i}", beschreibung=f"Text {i}")
+            for i in range(anzahl)
+        ]
+
+    ki_modul.texte_erzeugen = _texte
+    try:
+        vorher = _anzahl()
+        antwort = _hochladen("mit_text.jpg", JPG, anzahl="3")
+        neue = db.session.scalars(
+            select(ContentItem)
+            .where(ContentItem.campaign_channel_id == verbindung.id)
+            .order_by(ContentItem.id.desc())
+            .limit(3)
+        ).all()
+
+        pruefe("Drei Textvorschlaege entstehen", _anzahl() == vorher + 3)
+        pruefe("Alle mit demselben Bild",
+               len({e.file_path for e in neue}) == 1)
+        pruefe("Und in derselben Gruppe",
+               len({e.variant_group for e in neue}) == 1)
+        pruefe("Die Texte unterscheiden sich",
+               len({e.title for e in neue}) == 3)
+        # Der eigentliche Fehler von vorher: die Datei wurde uebergangen.
+        pruefe("Das Bild geht wirklich an das Modell", gesehen["bild"] == JPG)
+        pruefe("Und die Anfrage sagt, dass es dasteht",
+               "Oben steht das Bild" in gesehen["anfrage"])
+        pruefe("Die Anfrage wird mitgespeichert",
+               all(e.prompt for e in neue))
+
+        vorher = _anzahl()
+        gesehen.clear()
+        _hochladen("ohne_text.jpg", JPG, anzahl="0")
+        pruefe("Null Vorschlaege legen nur die Datei ab",
+               _anzahl() == vorher + 1)
+        pruefe("Und rufen das Modell gar nicht erst auf", not gesehen)
+
+        # Scheitert der Text, darf die Datei nicht verloren gehen.
+        def _wirft(anfrage, **_):
+            raise ki_modul.KIFehler("Gemini hat nichts geliefert.")
+
+        ki_modul.texte_erzeugen = _wirft
+        vorher = _anzahl()
+        antwort = _hochladen("trotzdem.jpg", JPG, anzahl="2")
+        pruefe("Ein gescheiterter Text kostet die Datei nicht",
+               _anzahl() == vorher + 1)
+        pruefe("Und die Meldung sagt, was los ist",
+               "Text ist gescheitert".encode() in antwort.data)
+    finally:
+        ki_modul.texte_erzeugen = echte_texte
+
+    # --- Nach dem Einschalten geht es zu den Varianten ----------------
+    #
+    # Ein frisch eingeschalteter Kanal hat nichts zu posten; der naechste
+    # Schritt ist immer derselbe.
+
+    zweite = Campaign(name="Prüfung Ablauf", target_url="https://example.de",
+                      status="draft")
+    db.session.add(zweite)
+    db.session.commit()
+    antwort = client.post(
+        f"/kampagnen/{zweite.id}/kanal/{kanal_zeile.id}",
+        data={
+            "csrf_token": _token(client),
+            "content_source": "ai_generated",
+            "posts_per_day": "2",
+            "zeit_von": "09:00",
+            "zeit_bis": "21:00",
+            "ablagen_gewaehlt": "ja",
+            "board_ids": ["7"],
+        },
+    )
+    pruefe("Einschalten fuehrt weiter zu den Varianten",
+           "/varianten" in antwort.headers.get("Location", ""))
+
+    neue_verbindung = db.session.scalar(
+        select(CampaignChannel).where(CampaignChannel.campaign_id == zweite.id)
+    )
+    seite = client.get(f"/kanal/{neue_verbindung.id}/varianten").data.decode()
+    # Vorher stand hier immer eine feste 3, egal was am Kanal eingestellt war.
+    pruefe("Die Anzahl kommt aus den Kanal-Einstellungen",
+           'name="anzahl" min="1" max="8"' in seite and 'value="2"' in seite)
+
+    antwort = client.post(
+        f"/kampagnen/{zweite.id}/kanal/{kanal_zeile.id}",
+        data={
+            "csrf_token": _token(client),
+            "content_source": "ai_generated",
+            "posts_per_day": "2",
+            "zeit_von": "09:00",
+            "zeit_bis": "21:00",
+            "ablagen_gewaehlt": "ja",
+            "board_ids": ["7"],
+        },
+    )
+    pruefe("Beim blossen Aendern bleibt man auf der Kampagne",
+           "/varianten" not in antwort.headers.get("Location", ""))
+
+    # --- Status von der Uebersicht aus --------------------------------
+
+    seite = client.get("/uebersicht").data.decode()
+    pruefe("Die Uebersicht zeigt, wo eine Kampagne laeuft",
+           "Läuft auf" in seite and "Pinterest" in seite)
+    pruefe("Und der Status ist dort waehlbar",
+           f'/kampagnen/{zweite.id}/status' in seite)
+
+    client.post(
+        f"/kampagnen/{zweite.id}/status",
+        data={"csrf_token": _token(client), "status": "active"},
+    )
+    db.session.refresh(zweite)
+    pruefe("Der Status laesst sich dort umstellen", zweite.status == "active")
+    pruefe("Name und Ziel-Link bleiben dabei stehen",
+           zweite.name == "Prüfung Ablauf"
+           and zweite.target_url == "https://example.de")
+
+    client.post(
+        f"/kampagnen/{zweite.id}/status",
+        data={"csrf_token": _token(client), "status": "erfunden"},
+    )
+    db.session.refresh(zweite)
+    pruefe("Ein unbekannter Status wird abgewiesen", zweite.status == "active")
+
+    db.session.delete(neue_verbindung)
+    db.session.delete(zweite)
+    db.session.commit()
 
     # Beim Loeschen einer Variante muss auch die Datei verschwinden, sonst
     # fuellt sich der Ordner mit Bildern, die zu nichts mehr gehoeren.

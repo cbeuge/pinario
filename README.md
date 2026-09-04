@@ -305,6 +305,29 @@ venv\Scripts\python.exe pruefe_ki.py
 drinstehen, dass die Google-Regel nur bei Google auftaucht, und dass zu
 lange Antworten an der Wortgrenze gekürzt werden statt mitten im Wort.
 
+### Der Weg durch die Anwendung
+
+Vier Schritte, und die Seiten führen von einem zum nächsten:
+
+1. **Kampagne anlegen** — Name, Ziel-Link, Briefing. Der Ziel-Link darf ohne
+   `https://` eingetippt werden, es wird ergänzt; abgelehnt wird nur, was
+   gar keine Adresse ist (ein fremdes Schema, ein Name ohne Endung).
+2. **Kanal einschalten** an der Kampagne. Danach geht es **direkt zu den
+   Varianten** — ein frisch eingeschalteter Kanal hat nichts zu posten, und
+   den nächsten Schritt selbst suchen zu müssen war der Bruch im Ablauf.
+   Beim bloßen Ändern bleibt man dagegen, wo man war.
+3. **Varianten** erzeugen oder hochladen, siehe unten.
+4. **Freigeben** und die Kampagne auf `active`.
+
+Auf der Varianten-Seite stehen die beiden Wege **nebeneinander und nicht
+untereinander**. Untereinander liest sich das wie ein Ablauf, und dann
+klickt jemand unten auf „Erzeugen" und erwartet, dass die eigene Datei von
+oben mitgenommen wird — genau das ist passiert.
+
+„Wie viele" ist mit dem vorbelegt, was am Kanal steht (`posts_per_day`).
+Vorher stand dort eine feste 3, egal was eingestellt war, und die Zahl von
+vorhin schien verschwunden.
+
 ### Eigene Dateien hochladen
 
 Seit dem 04.09.2026 lässt sich unter `/kanal/<id>/varianten` eine eigene
@@ -322,6 +345,21 @@ Beitrag.
 posten kann, wird gar nicht erst gespeichert: sonst läge die Datei da, die
 Variante sähe fertig aus, und der Zeitplan überspränge sie stillschweigend.
 Was ein Kanal annimmt, steht in `typen` — heute überall nur `image`.
+
+**Der Text entsteht zur Datei, nicht neben ihr.** Beim Hochladen lässt sich
+angeben, wie viele Textvorschläge dazu erzeugt werden sollen. Sie bekommen
+alle **dieselbe Datei** — so misst die Auswertung später den Text und nicht
+das Bild. Bei einem Bild geht es wirklich an das Modell mit (`bild=` an
+`texte_erzeugen`, dazu `zu_vorlage=True` in der Anfrage); bei einem Video
+nicht, dort bleibt nur das Briefing, und die Meldung sagt das auch.
+
+Bis zum 04.09.2026 fehlte dieser Schritt ganz: hochgeladen wurde, aber
+„Erzeugen" daneben übersprang die Datei und schrieb über das Thema. Der
+Beitrag beschrieb dann etwas anderes, als das Bild daneben zeigte.
+
+**0 Vorschläge** heißt: nur ablegen, Titel und Text von Hand. Scheitert das
+Erzeugen, bleibt die Datei als Variante ohne Text stehen — sie wegzuwerfen
+wäre die teurere Entscheidung, hochgeladen ist sie ja schon.
 
 Beim Löschen einer Variante verschwindet auch die Datei. Sicher ist das,
 weil eine **veröffentlichte** Variante sich gar nicht löschen lässt; es kann

@@ -108,12 +108,46 @@ def uebersicht():
             zustand, hinweis = "aus", "vorbereitet"
         kanaele.append({"name": eintrag.name, "zustand": zustand, "hinweis": hinweis})
 
+    # Wo eine Kampagne läuft, gehört auf die Übersicht. Der Ziel-Link allein
+    # sagt nur, wohin sie führt, nicht wo sie stattfindet — und genau das
+    # ist die Frage, die man sich beim Draufschauen stellt.
+    laeuft_auf: dict[int, list[str]] = {}
+    for verbindung in db.session.scalars(select(CampaignChannel)):
+        laeuft_auf.setdefault(verbindung.campaign_id, []).append(
+            verbindung.kanal.name
+        )
+
     return render_template(
         "uebersicht.html",
         kampagnen=kampagnen,
         gepostet=gepostet,
         kanaele=kanaele,
+        laeuft_auf=laeuft_auf,
+        status_werte=KAMPAGNE_STATUS,
     )
+
+
+@haupt.route("/kampagnen/<int:kampagne_id>/status", methods=["POST"])
+@login_required
+def kampagne_status(kampagne_id: int):
+    """Nur den Status umstellen, von der Übersicht aus.
+
+    Eigene Adresse und nicht `kampagne_bearbeiten`: dort gehen Name,
+    Ziel-Link und Briefing mit, und ein Formular, das nur den Status zeigt,
+    würde die drei beim Speichern leeren.
+    """
+    eintrag = _kampagne_holen(kampagne_id)
+    try:
+        eintrag.status = formular.aus_auswahl(
+            request.form.get("status"), KAMPAGNE_STATUS, "Der Status"
+        )
+    except formular.Ungueltig as fehler:
+        flash(str(fehler), "fehler")
+        return redirect(url_for("haupt.uebersicht"))
+
+    db.session.commit()
+    flash(f"„{eintrag.name}“ steht jetzt auf {eintrag.status}.", "erfolg")
+    return redirect(url_for("haupt.uebersicht"))
 
 
 # --- Kampagnen ---------------------------------------------------------
@@ -403,7 +437,8 @@ def kampagne_kanal(kampagne_id: int, channel_id: int):
         flash(str(fehler), "fehler")
         return redirect(url_for("haupt.kampagne", kampagne_id=kampagne_id))
 
-    if verbindung is None:
+    neu = verbindung is None
+    if neu:
         verbindung = CampaignChannel(
             campaign_id=eintrag.id, channel_id=channel_id
         )
@@ -413,6 +448,21 @@ def kampagne_kanal(kampagne_id: int, channel_id: int):
     verbindung.settings = einstellungen
 
     db.session.commit()
+
+    # **Nach dem Einschalten geht es zu den Varianten und nicht zurück auf
+    # die Kampagne.** Ein frisch eingeschalteter Kanal hat nichts zu posten;
+    # der nächste Schritt ist immer derselbe, und ihn selbst suchen zu
+    # müssen war der Bruch im Ablauf. Beim bloßen Ändern bleibt man dagegen,
+    # wo man war — dort wollte man ja etwas anderes.
+    if neu:
+        flash(
+            f"{kanal_eintrag.name} eingeschaltet. Jetzt fehlen noch Varianten.",
+            "erfolg",
+        )
+        return redirect(
+            url_for("haupt.varianten", verbindung_id=verbindung.id)
+        )
+
     flash(f"{kanal_eintrag.name} gespeichert.", "erfolg")
     return redirect(url_for("haupt.kampagne", kampagne_id=kampagne_id))
 
@@ -491,6 +541,13 @@ def varianten(verbindung_id: int):
         adapter=adapter,
         gruppen=_gruppen(verbindung, adapter),
         max_varianten=ki.MAX_VARIANTEN,
+        # Vorbelegt mit dem, was am Kanal eingestellt ist. Dort stehen drei
+        # pro Tag und hier trotzdem eine feste 3 -- das war der Moment, in
+        # dem die Zahl von vorhin verschwunden schien.
+        vorschlag_anzahl=min(
+            ki.MAX_VARIANTEN,
+            max(1, int((verbindung.settings or {}).get("posts_per_day", 3) or 3)),
+        ),
         kann_erzeugen=bool(einstellungen.gemini_herkunft()),
         # Ausgeschrieben, weil "image, video" vor dem Nutzer nichts zu suchen
         # hat. Die Liste kommt vom Kanal, nicht aus dem Template.
@@ -628,6 +685,7 @@ def variante_hochladen(verbindung_id: int):
     oder selbst schreiben; erzeugt wird hier nichts, hochgeladen wird nur.
     """
     verbindung = _verbindung_holen(verbindung_id)
+    kampagne_eintrag = verbindung.kampagne
     adapter = kanal(verbindung.kanal.key)
     ziel = url_for("haupt.varianten", verbindung_id=verbindung_id)
 
@@ -662,26 +720,125 @@ def variante_hochladen(verbindung_id: int):
         )
         return redirect(ziel)
 
-    pfad = ki.datei_ablegen(inhalt, endung)
-    db.session.add(
-        ContentItem(
-            campaign_channel_id=verbindung.id,
-            type=typ,
-            title=titel or None,
-            description=beschreibung or None,
-            file_path=pfad,
-            variant_group=ki.variantengruppe(),
-            quelle="upload",
-            status="draft",
+    # Wie viele Textvorschläge zu dieser Datei entstehen sollen. 0 heißt:
+    # nur ablegen, Text kommt von Hand.
+    try:
+        vorschlaege = formular.ganze_zahl(
+            request.form.get("anzahl") or "0",
+            "Die Anzahl der Textvorschläge",
+            min_wert=0,
+            max_wert=ki.MAX_VARIANTEN,
         )
+    except formular.Ungueltig as fehler:
+        flash(str(fehler), "fehler")
+        return redirect(ziel)
+
+    pfad = ki.datei_ablegen(inhalt, endung)
+    gruppe = ki.variantengruppe()
+
+    if not vorschlaege:
+        db.session.add(
+            ContentItem(
+                campaign_channel_id=verbindung.id,
+                type=typ,
+                title=titel or None,
+                description=beschreibung or None,
+                file_path=pfad,
+                variant_group=gruppe,
+                quelle="upload",
+                status="draft",
+            )
+        )
+        db.session.commit()
+        current_app.logger.info(
+            "Variante hochgeladen: %s für %s", typ, verbindung.kanal.key
+        )
+        flash(
+            "Hochgeladen. Titel und Beschreibung lassen sich unten bearbeiten; "
+            "freigegeben wird von Hand.",
+            "erfolg",
+        )
+        return redirect(ziel)
+
+    # **Der Text entsteht zur Datei, nicht neben ihr.** Bei einem Bild geht
+    # es mit an das Modell; bei einem Video nicht, dort bleibt nur das
+    # Briefing. Das steht ausdrücklich in der Meldung, sonst wundert man
+    # sich, warum der Text zum Video allgemeiner ausfällt.
+    anfrage = ki.anfrage_bauen(
+        kampagne_name=kampagne_eintrag.name,
+        ziel_url=kampagne_eintrag.target_url,
+        briefing=kampagne_eintrag.briefing,
+        kanal_name=verbindung.kanal.name,
+        max_beschreibung=adapter.max_beschreibung,
+        anzahl=vorschlaege,
+        affiliate_erlaubt=adapter.affiliate_erlaubt,
+        link_im_text=adapter.link_im_text,
+        link_klickbar=adapter.link_klickbar,
+        zu_vorlage=typ == "image",
     )
+
+    try:
+        varianten = ki.texte_erzeugen(
+            anfrage,
+            anzahl=vorschlaege,
+            max_beschreibung=adapter.max_beschreibung,
+            bild=inhalt if typ == "image" else None,
+        )
+    except ki.KIFehler as fehler:
+        # Die Datei bleibt liegen und bekommt eine Variante ohne Text. Sie
+        # wegzuwerfen wäre die teurere Entscheidung: hochgeladen ist sie ja
+        # schon, und der Text lässt sich nachreichen.
+        current_app.logger.warning("Text zur Datei gescheitert: %s", fehler)
+        db.session.add(
+            ContentItem(
+                campaign_channel_id=verbindung.id,
+                type=typ,
+                title=titel or None,
+                description=beschreibung or None,
+                file_path=pfad,
+                variant_group=gruppe,
+                quelle="upload",
+                status="draft",
+            )
+        )
+        db.session.commit()
+        flash(
+            f"Hochgeladen, aber der Text ist gescheitert: {fehler} Die Datei "
+            "liegt als Variante ohne Text da.",
+            "fehler",
+        )
+        return redirect(ziel)
+
+    for variante in varianten:
+        db.session.add(
+            ContentItem(
+                campaign_channel_id=verbindung.id,
+                type=typ,
+                title=variante.titel,
+                description=variante.beschreibung,
+                # **Dieselbe Datei an allen.** Sie sollen sich im Text
+                # unterscheiden und nicht im Bild — sonst misst die Auswertung
+                # später zwei Dinge auf einmal.
+                file_path=pfad,
+                variant_group=gruppe,
+                quelle="upload",
+                prompt=anfrage,
+                status="draft",
+            )
+        )
     db.session.commit()
     current_app.logger.info(
-        "Variante hochgeladen: %s für %s", typ, verbindung.kanal.key
+        "Variante hochgeladen: %s für %s, %s Textvorschläge",
+        typ, verbindung.kanal.key, len(varianten),
     )
     flash(
-        "Hochgeladen. Titel und Beschreibung lassen sich unten bearbeiten; "
-        "freigegeben wird von Hand.",
+        f"Hochgeladen, {len(varianten)} Textvorschläge dazu erzeugt"
+        + (
+            " — zum Bild selbst."
+            if typ == "image"
+            else ", allein nach dem Briefing: ein Video sieht das Modell nicht an."
+        )
+        + " Freigegeben wird von Hand.",
         "erfolg",
     )
     return redirect(ziel)

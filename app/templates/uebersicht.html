@@ -8,21 +8,55 @@
 </div>
 
 {% if kampagnen %}
+<div class="tabellenrahmen">
 <table class="liste">
   <thead>
-    <tr><th>Kampagne</th><th>Ziel</th><th>Status</th><th class="zahl">Gepostet</th></tr>
+    <tr>
+      <th>Kampagne</th>
+      <th>Läuft auf</th>
+      <th>Ziel</th>
+      <th>Status</th>
+      <th class="zahl">Gepostet</th>
+    </tr>
   </thead>
   <tbody>
   {% for k in kampagnen %}
     <tr>
       <td><a href="{{ url_for('haupt.kampagne', kampagne_id=k.id) }}">{{ k.name }}</a></td>
+      <td>
+        {% set kanaele_der_kampagne = laeuft_auf.get(k.id) %}
+        {% if kanaele_der_kampagne %}
+          {{ kanaele_der_kampagne | join(', ') }}
+        {% else %}
+          <span class="leise">kein Kanal eingeschaltet</span>
+        {% endif %}
+      </td>
       <td class="leise">{{ k.target_url }}</td>
-      <td><span class="status {{ k.status }}">{{ k.status }}</span></td>
+      <td>
+        {# Umstellen direkt hier, ohne den Umweg über die Kampagnen-Seite.
+           Eigene Adresse, damit Name, Ziel-Link und Briefing dabei nicht
+           mitgehen und beim Speichern geleert werden. #}
+        <form method="post" class="statuswahl"
+              action="{{ url_for('haupt.kampagne_status', kampagne_id=k.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <select name="status" class="status {{ k.status }}">
+            {% for wert in status_werte %}
+              <option value="{{ wert }}" {% if k.status == wert %}selected{% endif %}>{{ wert }}</option>
+            {% endfor %}
+          </select>
+          <button type="submit" class="textknopf">setzen</button>
+        </form>
+      </td>
       <td class="zahl">{{ gepostet.get(k.id, 0) }}</td>
     </tr>
   {% endfor %}
   </tbody>
 </table>
+</div>
+<p class="feldhilfe leise">
+  Nur <code>active</code> wird gepostet. <code>draft</code> heißt: alles
+  lässt sich vorbereiten, es geht nur nichts raus.
+</p>
 {% else %}
 <p class="hinweis">Noch keine Kampagne angelegt.</p>
 {% endif %}

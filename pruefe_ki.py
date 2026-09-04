@@ -76,6 +76,16 @@ ENTHALTEN = [
     ("Instagram: kein Verweis auf den Link in der Biografie",
      {"link_im_text": True, "link_klickbar": False},
      ["Biografie"]),
+    # Der Text zu einer hochgeladenen Datei. Ohne diese Zeilen sieht das
+    # Modell das Bild zwar, haelt es aber fuer Beiwerk und schreibt am Motiv
+    # vorbei -- der Beitrag beschreibt dann etwas anderes als das Bild
+    # daneben zeigt.
+    ("Zur Vorlage: das Bild wird ausdruecklich genannt",
+     {"zu_vorlage": True}, ["Oben steht das Bild"]),
+    ("Zur Vorlage: was zu sehen ist, gehoert in den Text",
+     {"zu_vorlage": True}, ["was darauf zu sehen ist"]),
+    ("Zur Vorlage: nichts hineinerfinden",
+     {"zu_vorlage": True}, ["Erfinde nichts hinein"]),
 ]
 
 # (Beschreibung, Abweichung, was NICHT drinstehen darf)
@@ -85,6 +95,7 @@ FEHLEN = [
      {"link_im_text": True}, ["nicht in den Text"]),
     ("Anklickbarer Link: kein Hinweis aufs Abtippen",
      {"link_im_text": True}, ["nicht anklickbar"]),
+    ("Ohne Vorlage kein Hinweis auf ein Bild", {}, ["Oben steht das Bild"]),
     ("Mit Briefing: kein Luecken-Hinweis", {}, ["gibt es nicht"]),
 ]
 
@@ -206,6 +217,89 @@ def _wirft(roh) -> bool:
     return False
 
 
+# --- Der Ziel-Link ------------------------------------------------------
+
+# Niemand tippt https:// freiwillig. Abgelehnt wird nur, was gar keine
+# Adresse ist -- was die Pruefung wirklich verhindern soll, ist eine
+# unvollstaendige Adresse *im Pin*, und die entsteht so gerade nicht mehr.
+ZIEL_FAELLE = [
+    ("Ohne Schema wird https ergaenzt", "pinario.de", "https://pinario.de"),
+    ("Auch mit Pfad", "pinario.de/start", "https://pinario.de/start"),
+    ("Mit www", "www.pinario.de", "https://www.pinario.de"),
+    ("https bleibt https", "https://pinario.de", "https://pinario.de"),
+    ("http bleibt http", "http://pinario.de", "http://pinario.de"),
+    ("Leerraum faellt weg", "  pinario.de  ", "https://pinario.de"),
+]
+
+ZIEL_ABGELEHNT = [
+    ("javascript: wird nicht stillschweigend umgeschrieben",
+     "javascript:alert(1)"),
+    ("Ein fremdes Schema auch nicht", "ftp://x.de"),
+    ("Ohne Endung ist es ein Tippfehler", "pinario"),
+    ("Leer bleibt leer", ""),
+]
+
+
+def _pruefe_ziel() -> int:
+    from app.formular import Ungueltig, ziel_adresse
+
+    fehler = 0
+    print()
+    print("Der Ziel-Link")
+    for name, roh, erwartet in ZIEL_FAELLE:
+        try:
+            ist = ziel_adresse(roh)
+        except Ungueltig as f:
+            fehler += 1
+            print(f"  FEHLER  {name}: abgelehnt ({f})")
+            continue
+        if ist == erwartet:
+            print(f"  ok      {name}")
+        else:
+            fehler += 1
+            print(f"  FEHLER  {name}: {ist} statt {erwartet}")
+
+    for name, roh in ZIEL_ABGELEHNT:
+        try:
+            ist = ziel_adresse(roh)
+        except Ungueltig:
+            print(f"  ok      {name}")
+        else:
+            fehler += 1
+            print(f"  FEHLER  {name}: durchgelassen als {ist}")
+    return fehler
+
+
+# --- Der MIME-Typ des Bildes --------------------------------------------
+
+# Geht an Gemini mit. Aus den ersten Bytes abgeleitet und nicht aus dem
+# Dateinamen: dem Modell etwas Falsches anzusagen ist schlimmer, als es
+# raten zu lassen.
+MIME_FAELLE = [
+    ("JPG", bytes([0xFF, 0xD8, 0xFF]) + b"x" * 20, "image/jpeg"),
+    ("PNG", bytes([0x89]) + b"PNG" + b"x" * 20, "image/png"),
+    ("GIF", b"GIF89a" + b"x" * 20, "image/gif"),
+    ("WEBP", b"RIFF" + b"x" * 20, "image/webp"),
+    ("Unbekanntes faellt auf PNG", b"egal", "image/png"),
+]
+
+
+def _pruefe_mime() -> int:
+    from app.ki import _mime
+
+    fehler = 0
+    print()
+    print("Der MIME-Typ des Bildes")
+    for name, daten, erwartet in MIME_FAELLE:
+        ist = _mime(daten)
+        if ist == erwartet:
+            print(f"  ok      {name}")
+        else:
+            fehler += 1
+            print(f"  FEHLER  {name}: {ist} statt {erwartet}")
+    return fehler
+
+
 # --- Die Anfrage fuers Bild ---------------------------------------------
 
 # Am 04.09.2026 ging hier die komplette Text-Anfrage an das Bildmodell:
@@ -274,7 +368,10 @@ def _pruefe_bildanfragen() -> int:
 
 
 def main() -> int:
-    fehler = _pruefe_anfragen() + _pruefe_antworten() + _pruefe_bildanfragen()
+    fehler = (
+        _pruefe_anfragen() + _pruefe_antworten() + _pruefe_bildanfragen()
+        + _pruefe_mime() + _pruefe_ziel()
+    )
 
     print()
     if fehler:
@@ -283,7 +380,8 @@ def main() -> int:
 
     gesamt = (
         len(ENTHALTEN) + len(FEHLEN) + len(_antwort_faelle())
-        + len(BILD_ENTHALTEN) + len(BILD_FEHLEN)
+        + len(BILD_ENTHALTEN) + len(BILD_FEHLEN) + len(MIME_FAELLE)
+        + len(ZIEL_FAELLE) + len(ZIEL_ABGELEHNT)
     )
     print(f"Alle {gesamt} Prüfungen bestanden.")
     return 0

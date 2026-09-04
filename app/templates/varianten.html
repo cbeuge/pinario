@@ -8,12 +8,21 @@
 </p>
 <h1>Varianten für {{ verbindung.kanal.name }}</h1>
 
+{# Zwei Wege zum selben Ziel, deshalb nebeneinander und nicht
+   untereinander: untereinander sah es aus wie ein Ablauf, und dann klickt
+   man unten auf "Erzeugen" und wundert sich, dass die eigene Datei von
+   oben ignoriert wird. #}
+<div class="zweispaltig">
+<section>
+<h2>Neu erzeugen lassen</h2>
+
 <form method="post" action="{{ url_for('haupt.varianten_erzeugen', verbindung_id=verbindung.id) }}" class="maske eng">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
   <label for="anzahl">Wie viele</label>
   <input type="number" id="anzahl" name="anzahl" min="1" max="{{ max_varianten }}"
-         value="3" required {% if not kann_erzeugen %}disabled{% endif %}>
+         value="{{ vorschlag_anzahl }}" required
+         {% if not kann_erzeugen %}disabled{% endif %}>
 
   <label class="kasten">
     <input type="checkbox" name="mit_bild" value="ja" checked
@@ -52,7 +61,9 @@
     </p>
   {% endif %}
 </form>
+</section>
 
+<section>
 <h2>Eigene Datei hochladen</h2>
 
 <form method="post" enctype="multipart/form-data"
@@ -69,24 +80,35 @@
     Endung.<br>
     {{ verbindung.kanal.name }} nimmt hier
     <strong>{{ typen_klartext }}</strong>.
-    {% if 'video' not in adapter.typen %}
-      Video geht noch nicht — der Upload zur Plattform läuft dort über einen
-      eigenen, mehrstufigen Weg, und der ist noch nicht gebaut.
-    {% endif %}
+  </p>
+
+  <label for="upload-anzahl">Textvorschläge dazu erzeugen</label>
+  <input type="number" id="upload-anzahl" name="anzahl" min="0"
+         max="{{ max_varianten }}" value="{{ vorschlag_anzahl if kann_erzeugen else 0 }}"
+         {% if not kann_erzeugen %}disabled{% endif %}>
+  <p class="feldhilfe leise">
+    Mehrere Texte zu <em>derselben</em> Datei — so misst die Auswertung
+    später den Text und nicht das Bild. <strong>Bei einem Bild sieht Gemini
+    es sich wirklich an</strong> und schreibt dazu; bei einem Video geht nur
+    das Briefing ein.<br>
+    <strong>0</strong> heißt: nur ablegen, Titel und Text schreibst du
+    selbst.
   </p>
 
   <label for="upload-titel">Titel</label>
   <input type="text" id="upload-titel" name="titel" maxlength="255"
-         placeholder="kann auch später dazu">
+         placeholder="nur nötig ohne Textvorschläge">
 
   <label for="upload-text">Beschreibung</label>
   <textarea id="upload-text" name="beschreibung" rows="3" maxlength="4000"
-            placeholder="kann auch später dazu"></textarea>
+            placeholder="nur nötig ohne Textvorschläge"></textarea>
 
   <div class="knopfreihe">
     <button type="submit">Hochladen</button>
   </div>
 </form>
+</section>
+</div>
 
 {% if not gruppen %}
   <p class="leise">Noch keine Varianten.</p>

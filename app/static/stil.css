@@ -463,3 +463,30 @@ code {
   border-color: var(--akzent);
   color: var(--text);
 }
+
+/* Zwei gleichwertige Wege nebeneinander, nicht untereinander. Untereinander
+   liest sich das wie ein Ablauf, und dann klickt jemand unten auf
+   "Erzeugen" und erwartet, dass die eigene Datei von oben mitgenommen
+   wird. */
+.zweispaltig {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr));
+  gap: 2rem;
+  align-items: start;
+  margin-bottom: 2rem;
+}
+.zweispaltig > section > h2:first-child { margin-top: 0; }
+.zweispaltig .maske { max-width: none; }
+
+/* Status umstellen direkt in der Liste. Auswahl und Knopf nebeneinander,
+   damit die Zeile eine Zeile bleibt. */
+.statuswahl { display: flex; align-items: center; gap: .5rem; }
+.statuswahl select {
+  padding: .25rem .4rem;
+  background: var(--flaeche);
+  border: 1px solid var(--rand);
+  border-radius: 6px;
+  color: var(--text);
+  font: inherit;
+  font-size: .85rem;
+}
