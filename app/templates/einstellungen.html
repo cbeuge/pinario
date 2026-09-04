@@ -114,7 +114,10 @@
         <input type="{{ 'password' if eintrag.feld.geheim else 'text' }}"
                id="{{ zeile.kanal.key }}-{{ eintrag.name }}" name="{{ eintrag.name }}"
                maxlength="200" autocomplete="off" spellcheck="false"
-               {% if eintrag.herkunft %}placeholder="unverändert lassen"{% endif %}>
+               {% if eintrag.herkunft %}placeholder="unverändert lassen"{% elif not eintrag.feld.pflicht %}placeholder="nur wenn nötig"{% endif %}>
+        {% if eintrag.feld.hilfe %}
+          <p class="feldhilfe leise">{{ eintrag.feld.hilfe }}</p>
+        {% endif %}
       {% endfor %}
 
       <div class="knopfreihe">

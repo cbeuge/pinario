@@ -63,6 +63,25 @@ ALLE = (
 # **`name` darf sich nicht mehr ändern**, daraus wird der Schlüssel in der
 # Tabelle `einstellungen` gebaut. Ein neuer Name heißt: der alte Wert ist
 # nicht weg, aber niemand findet ihn mehr.
+# Meta hat zwei Anmeldewege, und sie vertragen sich nicht.
+#
+# Das klassische "Facebook Login" bekommt die Rechte als `scope` in der
+# Adresse. **"Facebook Login for Business" nicht** — dort stehen die Rechte
+# in einer Konfiguration, die man im Entwicklerbereich anlegt, und
+# mitgeschickt wird nur deren `config_id`. Wer eine Business-Anmeldung mit
+# `scope` aufruft, bekommt keinen Dialog, sondern einen Abbruch: der Nutzer
+# kommt gar nicht erst zurück, und im eigenen Log steht nur "Verbinden
+# gestartet". Genau das ist am 04.09.2026 passiert.
+#
+# Deshalb ist die Konfigurations-ID ein **optionales** Feld: steht sie da,
+# geht der Business-Weg, sonst der klassische.
+META_CONFIG_HILFE = (
+    "Nur nötig, wenn die App „Facebook Login for Business“ benutzt — dann "
+    "aber zwingend. Zu finden im Meta-Entwicklerbereich unter Facebook Login "
+    "for Business → Konfigurationen. Ohne sie schickt pinario die Rechte "
+    "einzeln, und das versteht der Business-Anmeldedialog nicht."
+)
+
 ZUGANGSFELDER: dict[str, tuple[Zugangsfeld, ...]] = {
     "pinterest": (
         Zugangsfeld("app_id", "App-ID"),
@@ -81,10 +100,12 @@ ZUGANGSFELDER: dict[str, tuple[Zugangsfeld, ...]] = {
     "instagram": (
         Zugangsfeld("app_id", "Meta-App-ID"),
         Zugangsfeld("app_secret", "App-Secret", geheim=True),
+        Zugangsfeld("config_id", "Konfigurations-ID", pflicht=False, hilfe=META_CONFIG_HILFE),
     ),
     "facebook": (
         Zugangsfeld("app_id", "Meta-App-ID"),
         Zugangsfeld("app_secret", "App-Secret", geheim=True),
+        Zugangsfeld("config_id", "Konfigurations-ID", pflicht=False, hilfe=META_CONFIG_HILFE),
     ),
     # Threads braucht eine **eigene** App, nicht die von Instagram oder
     # Facebook: im Meta-Entwicklerbereich ist das ein eigener

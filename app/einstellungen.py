@@ -202,7 +202,7 @@ def kanal_vollstaendig(kanal_key: str) -> bool:
     """
     from .kanaele import ZUGANGSFELDER
 
-    felder = ZUGANGSFELDER.get(kanal_key, ())
+    felder = [f for f in ZUGANGSFELDER.get(kanal_key, ()) if f.pflicht]
     return bool(felder) and all(kanal_wert(kanal_key, f.name) for f in felder)
 
 

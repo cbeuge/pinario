@@ -50,6 +50,15 @@ class Zugangsfeld:
     name: str
     beschriftung: str
     geheim: bool = False
+    # Ob das Feld ausgefüllt sein muss, damit der Kanal benutzbar ist.
+    # Nicht alles ist Pflicht: die Konfigurations-ID bei Meta braucht nur,
+    # wer "Facebook Login for Business" nutzt. Ein optionales Feld als
+    # Pflicht zu führen hieße, einen fertigen Kanal als unvollständig
+    # anzuzeigen.
+    pflicht: bool = True
+    # Ein Satz unter dem Feld, wenn ohne ihn niemand weiß, was hineingehört
+    # oder wo der Wert herkommt.
+    hilfe: str = ""
 
 
 @dataclass

@@ -191,6 +191,34 @@ def main() -> int:  # noqa: C901
         pruefe("Rueckruf-Adresse je Kanal verschieden",
                "%2Fkanaele%2Finstagram%2Frueckruf" in adresse)
 
+        # --- Der Business-Anmeldeweg ----------------------------------
+        #
+        # Am 04.09.2026 hing genau hier alles fest: "Facebook Login for
+        # Business" nimmt kein `scope`, sondern die `config_id` einer
+        # Konfiguration. Ruft man ihn trotzdem mit `scope` auf, kommt der
+        # Nutzer nicht zurueck -- ohne Fehler, der bei uns ankaeme.
+
+        e.kanal_wert = lambda k, f: {
+            "app_id": "app-1", "app_secret": "g", "config_id": "conf-9"
+        }.get(f, "")
+        adresse = facebook.anmelde_adresse("zustand-3")
+        pruefe("Mit Konfigurations-ID geht sie mit",
+               "config_id=conf-9" in adresse)
+        pruefe("Und dann steht KEIN scope mehr drin", "scope=" not in adresse)
+        # Ohne das nimmt der Business-Dialog seinen eigenen Standard und
+        # liefert ein Token statt eines Codes zurueck.
+        pruefe("Der Antworttyp wird ausdruecklich erzwungen",
+               "override_default_response_type=true" in adresse)
+        pruefe("Die Rueckruf-Adresse bleibt dieselbe",
+               "%2Fkanaele%2Ffacebook%2Frueckruf" in adresse)
+
+        e.kanal_wert = lambda k, f: {"app_id": "app-1", "app_secret": "g"}.get(f, "")
+        adresse = facebook.anmelde_adresse("zustand-4")
+        pruefe("Ohne Konfigurations-ID bleibt es beim klassischen Weg",
+               "scope=" in adresse and "config_id" not in adresse)
+        pruefe("Und ohne den Zwang beim Antworttyp",
+               "override_default_response_type" not in adresse)
+
         # --- Code eintauschen -----------------------------------------
 
         netz.aufrufe.clear()

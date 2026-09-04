@@ -211,6 +211,22 @@ class MetaKanal(Kanal):
     # --- Verbinden -----------------------------------------------------
 
     def anmelde_adresse(self, zustand: str) -> str:
+        """Die Adresse, zu der der Browser zum Verbinden geschickt wird.
+
+        **Meta hat zwei Anmeldewege, und sie vertragen sich nicht.** Das
+        klassische "Facebook Login" bekommt die Rechte als `scope` in der
+        Adresse. "Facebook Login for Business" nicht: dort stehen die Rechte
+        in einer Konfiguration, die im Entwicklerbereich angelegt wird, und
+        mitgeschickt wird nur deren `config_id`.
+
+        Wer eine Business-Anmeldung mit `scope` aufruft, bekommt keinen
+        Dialog und keine Fehlermeldung, die bei uns ankäme — der Nutzer wird
+        gar nicht erst zurückgeschickt. Im eigenen Log steht dann nur
+        "Verbinden gestartet" und danach nichts mehr. Genau daran hing es am
+        04.09.2026.
+
+        Welcher Weg gilt, entscheidet die hinterlegte Konfigurations-ID.
+        """
         from ..einstellungen import kanal_wert
 
         app_id = kanal_wert(self.key, "app_id")
@@ -220,13 +236,25 @@ class MetaKanal(Kanal):
                 "unter Einstellungen; die App wird im Meta-Entwicklerbereich "
                 "angelegt."
             )
-        return ANMELDUNG + "?" + urlencode({
+
+        felder = {
             "client_id": app_id,
             "redirect_uri": self._rueckruf(),
             "response_type": "code",
-            "scope": ",".join(self.bereiche),
             "state": zustand,
-        })
+        }
+
+        config_id = kanal_wert(self.key, "config_id")
+        if config_id:
+            felder["config_id"] = config_id
+            # Ohne das nimmt der Business-Dialog seinen eigenen Standard und
+            # ignoriert `response_type=code` — dann kommt ein Token in der
+            # Adresse zurück statt eines Codes, und der Tausch scheitert.
+            felder["override_default_response_type"] = "true"
+        else:
+            felder["scope"] = ",".join(self.bereiche)
+
+        return ANMELDUNG + "?" + urlencode(felder)
 
     def zugang_holen(self, code: str) -> dict:
         """Code eintauschen und das Ergebnis gleich haltbar machen.

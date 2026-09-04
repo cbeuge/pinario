@@ -574,6 +574,34 @@ Was vorher stehen muss:
    dieselbe App dahintersteht; zweimal denselben Wert einzutragen kostet
    eine Minute, das Auseinandernehmen später eine Migration.
 
+### Zwei Anmeldewege, die sich nicht vertragen
+
+**Das hat am 04.09.2026 einen Nachmittag gekostet.** Meta hat zwei
+Login-Produkte:
+
+* **„Facebook Login"** (klassisch) bekommt die Rechte als `scope` in der
+  Adresse.
+* **„Facebook Login for Business"** nicht. Dort stehen die Rechte in einer
+  *Konfiguration*, die man im Entwicklerbereich anlegt, und mitgeschickt
+  wird nur deren `config_id`.
+
+Ruft man eine Business-Anmeldung mit `scope` auf, passiert etwas
+Unangenehmes: **kein Dialog, keine Fehlermeldung, die hier ankäme.** Der
+Nutzer wird gar nicht erst zurückgeschickt. Im eigenen Log steht dann nur
+„Verbinden gestartet" und danach nichts mehr, und man sucht den Fehler in
+der Rückruf-Adresse, wo keiner ist.
+
+Deshalb hat der Kanal ein **optionales** Feld `config_id` unter
+Einstellungen. Steht sie da, geht der Business-Weg (`config_id` plus
+`override_default_response_type=true`, sonst nimmt der Dialog seinen eigenen
+Antworttyp und liefert ein Token statt eines Codes zurück). Steht sie nicht
+da, bleibt es beim klassischen `scope`.
+
+Zu finden ist sie im Entwicklerbereich unter **Facebook Login for Business →
+Konfigurationen**. Beim Anlegen der Konfiguration werden dort die Assets
+(Seiten) und die Berechtigungen ausgewählt — die Liste unten steht dann
+nicht mehr im Code, sondern bei Meta.
+
 Die Rechte werden je Kanal einzeln erfragt: wer Facebook verbindet, muss
 dafür nicht Instagram freigeben.
 
