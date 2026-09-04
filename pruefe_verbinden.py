@@ -236,6 +236,12 @@ def main() -> int:  # noqa: C901
     return 0
 
 
+def _ohne_konto(seite: str) -> str:
+    """Die Kanaele, die die Zeitplan-Seite als unverbunden meldet."""
+    treffer = re.search(r"Kein Konto verbunden: ([^.]*)\.", seite)
+    return treffer.group(1) if treffer else ""
+
+
 def _konto(kanal_id):
     return db.session.scalars(
         select(Account).where(Account.channel_id == kanal_id).order_by(Account.id)
@@ -407,9 +413,12 @@ def _messen(app, adapter, kanal_zeile, nutzer):  # noqa: C901
 
     # --- Zeitplan sieht das Konto -------------------------------------
 
+    # Nicht auf den ganzen Satz pruefen: seit Instagram und Facebook aktiv
+    # sind, steht er dort weiter, nur ohne Pinterest. Ein Test, der das
+    # nicht trennt, misst die Zahl der Kanaele statt das Verhalten.
     seite = client.get("/zeitplan").data.decode()
-    pruefe("Zeitplan meldet keinen fehlenden Zugang mehr",
-           "Kein Konto verbunden" not in seite)
+    pruefe("Zeitplan zaehlt Pinterest nicht mehr als unverbunden",
+           "Pinterest" not in _ohne_konto(seite))
 
     konten[0].expires_at = jetzt() - timedelta(days=1)
     db.session.commit()
@@ -430,12 +439,14 @@ def _messen(app, adapter, kanal_zeile, nutzer):  # noqa: C901
 
     seite = client.get("/zeitplan").data.decode()
     pruefe("Zeitplan meldet den Kanal wieder als nicht verbunden",
-           "Kein Konto verbunden" in seite)
+           "Pinterest" in _ohne_konto(seite))
 
     # --- Ein Kanal ohne Adapter ---------------------------------------
 
+    # X ist der letzte ohne Adapter. Instagram und Facebook standen hier
+    # bis zum 04.09.2026 und haben jetzt einen.
     antwort = client.post(
-        "/kanaele/instagram/verbinden", data={"csrf_token": _token(client)}
+        "/kanaele/x/verbinden", data={"csrf_token": _token(client)}
     )
     pruefe("Ein Kanal ohne Adapter gibt 404", antwort.status_code == 404)
 

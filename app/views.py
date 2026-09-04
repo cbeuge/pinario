@@ -429,6 +429,8 @@ def varianten_erzeugen(verbindung_id: int):
         max_beschreibung=adapter.max_beschreibung,
         anzahl=anzahl,
         affiliate_erlaubt=adapter.affiliate_erlaubt,
+        link_im_text=adapter.link_im_text,
+        link_klickbar=adapter.link_klickbar,
     )
 
     try:

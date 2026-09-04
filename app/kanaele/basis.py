@@ -105,6 +105,17 @@ class Kanal:
     # ausdrücklich nein, siehe den Adapter. Der Wert steht hier und nicht als
     # Sonderfall in der Kampagnen-Maske, damit die Regel an einer Stelle lebt.
     affiliate_erlaubt: bool = True
+    # Ob der Ziel-Link in den Text muss. Ein Pin hat ein eigenes Feld dafür,
+    # ein Foto-Beitrag bei Facebook oder Instagram nicht — dort steht der
+    # Link im Text oder nirgends. Das gehört in die Anfrage an das Modell:
+    # steht "den Link nicht in den Text schreiben" drin, obwohl es keine
+    # andere Stelle gibt, führt der fertige Beitrag ins Leere.
+    link_im_text: bool = False
+    # Und ob er dort überhaupt anklickbar ist. Bei Instagram ist er das
+    # nicht, in keiner Bildunterschrift. Das ist keine Kleinigkeit: ein Text,
+    # der "hier klicken" sagt, ist dort schlicht falsch, und die einzige
+    # klickbare Stelle des ganzen Kontos ist der Link im Profil.
+    link_klickbar: bool = True
 
     # --- Verbinden -----------------------------------------------------
 

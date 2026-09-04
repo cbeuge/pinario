@@ -62,11 +62,29 @@ ENTHALTEN = [
     ("Kein Affiliate: Zusatzregel",
      {"affiliate_erlaubt": False},
      ["Unternehmensprofil", "Partnerprogramme"]),
+    # Wohin der Ziel-Link gehoert, entscheidet die Plattform. Ein Pin hat
+    # ein eigenes Feld dafuer, eine Bildunterschrift nicht — stuende hier
+    # pauschal "nicht in den Text", fuehrte jeder Beitrag auf Facebook und
+    # Instagram ins Leere.
+    ("Kanal mit eigenem Link-Feld: raus aus dem Text",
+     {}, ["nicht in den Text"]),
+    ("Kanal ohne Link-Feld: rein in den Text",
+     {"link_im_text": True}, ["ans Ende des Textes"]),
+    ("Instagram: der Link ist dort nicht anklickbar",
+     {"link_im_text": True, "link_klickbar": False},
+     ["nicht anklickbar", "abtippen oder kopieren"]),
+    ("Instagram: kein Verweis auf den Link in der Biografie",
+     {"link_im_text": True, "link_klickbar": False},
+     ["Biografie"]),
 ]
 
 # (Beschreibung, Abweichung, was NICHT drinstehen darf)
 FEHLEN = [
     ("Affiliate erlaubt: keine Zusatzregel", {}, ["Unternehmensprofil"]),
+    ("Kanal ohne Link-Feld: nicht auch noch das Gegenteil",
+     {"link_im_text": True}, ["nicht in den Text"]),
+    ("Anklickbarer Link: kein Hinweis aufs Abtippen",
+     {"link_im_text": True}, ["nicht anklickbar"]),
     ("Mit Briefing: kein Luecken-Hinweis", {}, ["gibt es nicht"]),
 ]
 

@@ -62,6 +62,9 @@ Sonderfall in der Kampagnen-Maske.
   **Pinterest-Adapter vollständig** — Code eintauschen, Zugang erneuern,
   Boards lesen, Pin schreiben, Zahlen holen. Gegen die echte API ist davon
   noch nichts gelaufen, dafür fehlt die App bei Pinterest
+* **Facebook und Instagram** (`app/kanaele/meta.py`), beide über die Graph
+  API. Anders als bei Pinterest wartet man hier auf niemanden: für eigene
+  Konten reicht eine App im Entwicklungsmodus
 * `www.pinario.de` leitet per 301 auf die Hauptadresse um, das Zertifikat
   deckt beide Namen ab
 
@@ -105,6 +108,7 @@ app/
   kanaele/        ein Adapter je Plattform
                   basis.py            was ein Kanal können muss
                   pinterest.py        Pinterest API v5
+                  meta.py             Facebook-Seiten und Instagram
                   google_business.py  Google Business Profile
 marke_quelle/     Vorlage und Werkzeug für die Logo-Dateien
 betrieb/          systemd-Unit und nginx-Konfiguration
@@ -112,7 +116,8 @@ migrations/       Alembic
 pruefe_rechtstext.py  misst den HTML-Säuberer nach (37 Fälle)
 pruefe_ki.py          misst die Anfrage an Gemini nach (28 Fälle)
 pruefe_zeitplan.py    misst das Rechnen der Termine nach (20 Fälle)
-pruefe_pinterest.py   misst den Adapter nach, ohne Netz (67 Fälle)
+pruefe_pinterest.py   misst den Pinterest-Adapter nach, ohne Netz (67 Fälle)
+pruefe_meta.py        misst Facebook und Instagram nach, ohne Netz (81 Fälle)
 pruefe_verbinden.py   misst den Verbinden-Weg nach, braucht die Datenbank
                       (44 Fälle)
 ```
@@ -507,6 +512,104 @@ developers.pinterest.com läuft nichts davon gegen die echte API. Die
 Redirect-URI dort muss `https://pinario.de/kanaele/pinterest/rueckruf`
 lauten. Eingetragen werden die beiden Werte unter `/einstellungen`, nicht in
 die `.env` — dann ist auch kein Neustart nötig.
+
+## Facebook und Instagram
+
+Beide laufen über dieselbe Graph API von Meta und stehen deshalb in einer
+Datei (`app/kanaele/meta.py`). Sie teilen sich App, Anmeldeweg, Token und
+Seitenliste; getrennt sind nur das Posten und die Zahlen.
+
+**Hier wartet man auf niemanden.** Solange nur eigene Konten bedient werden,
+reicht eine App im Entwicklungsmodus mit dem eigenen Konto als Administrator
+beziehungsweise Instagram-Tester. Metas App Review greift erst, wenn fremde
+Leute ihre Konten mit der App verbinden, und das passiert bei pinario nie.
+Das ist der eine große Unterschied zu Pinterest.
+
+Was vorher stehen muss:
+
+1. **Eine Facebook-Seite.** Die API kann nur Seiten, keine Privatprofile.
+2. **Für Instagram ein Professional-Konto** (Business oder Creator), das
+   **mit dieser Seite verknüpft ist**. Ohne die Verknüpfung taucht es in
+   `/me/accounts` gar nicht auf — das ist der häufigste Grund für eine leere
+   Kontenliste unter „Konten ansehen".
+3. **Eine App im Meta-Entwicklerbereich**, App-ID und Secret unter
+   `/einstellungen`. Beide Kanäle haben dort eigene Felder, obwohl meistens
+   dieselbe App dahintersteht; zweimal denselben Wert einzutragen kostet
+   eine Minute, das Auseinandernehmen später eine Migration.
+
+Die Rechte werden je Kanal einzeln erfragt: wer Facebook verbindet, muss
+dafür nicht Instagram freigeben.
+
+| Kanal | Rechte |
+|---|---|
+| Facebook | `pages_show_list`, `pages_read_engagement`, `pages_manage_posts` |
+| Instagram | `pages_show_list`, `pages_read_engagement`, `instagram_basic`, `instagram_content_publish` |
+
+### Vier Dinge, die hier anders laufen als bei Pinterest
+
+**Es gibt zwei Sorten Token.** Beim Verbinden kommt ein *Nutzer*-Token
+heraus, gepostet wird aber mit einem *Seiten*-Token, und den holt man für
+jede Seite einzeln über `/me/accounts`. Wer es verwechselt, bekommt einen
+Rechtefehler, der nach einem fehlenden Recht aussieht und keines ist.
+
+**Das erste Token gilt eine Stunde.** `zugang_holen` tauscht es deshalb
+sofort gegen ein langlebiges mit rund 60 Tagen. Das ist kein Feinschliff,
+sondern der Unterschied zwischen benutzbar und nicht.
+
+**Meta kennt kein Erneuerungs-Token.** Verlängert wird, indem man das
+gültige Token noch einmal eintauscht — und das geht nur, solange es *nicht*
+abgelaufen ist. Deshalb steht in `accounts` unter `erneuerung` dasselbe wie
+unter `zugang`, und deshalb erneuert der Zeitplan sechs Stunden vor Ablauf
+statt am Ablauftag. Ist die Frist einmal um, hilft nur neu verbinden.
+
+**Instagram postet zweistufig.** Erst ein Container (`/media`), dann
+veröffentlichen (`/media_publish`). Dazwischen verarbeitet Meta das Bild;
+bei einem Foto geht das meist sofort, aber eben nicht immer. Der Adapter
+fragt deshalb `status_code` ab, bis `FINISHED` dasteht, und bricht bei
+`ERROR` oder `EXPIRED` sofort ab, statt die Zeit abzusitzen.
+
+### Der Ziel-Link
+
+Bei Pinterest hat ein Pin ein eigenes Feld dafür. Hier gibt es nur den Text,
+und daraus folgen zwei Dinge, die am Kanal stehen und von dort in die
+Anfrage an Gemini gehen:
+
+* `link_im_text = True` bei beiden. Stünde in der Anfrage weiter pauschal
+  „den Ziel-Link nicht in den Text", führte jeder Beitrag ins Leere.
+* `link_klickbar = False` bei **Instagram**. Dort ist ein Link in der
+  Bildunterschrift nicht anklickbar. Das Modell wird deshalb angewiesen,
+  ihn zum Abtippen hinzuschreiben, aber nicht zum Klicken aufzufordern und
+  auch nicht auf einen Link in der Biografie zu verweisen, den es
+  vielleicht gar nicht gibt.
+
+Angehängt wird er in `_text_mit_link`, und dabei gilt: **der Link wird nie
+abgeschnitten.** Ein halber Link sieht aus, als führte er irgendwohin. Passt
+er nicht mehr, wird stattdessen der Text gekürzt.
+
+### Was dabei bewusst nicht geht
+
+**Facebook postet als Foto (`/photos`), nicht als Beitrag mit Link
+(`/feed`).** Der Unterschied ist sichtbar: bei `/feed` mit `link` baut
+Facebook eine eigene Vorschaukarte aus der Zielseite, und das selbst
+erzeugte Bild taucht gar nicht auf. Genau dieses Bild ist aber der Grund,
+warum es pinario gibt.
+
+**Video geht bei beiden nicht**, aus demselben Grund wie bei Pinterest: der
+Weg dafür ist mehrstufig, und die Anwendung erzeugt bisher keine Videos.
+
+**Die Kennzahlen sind der wackligste Teil.** Meta räumt dort laufend um,
+`post_impressions` verschwindet 2026 und `impressions` ist bei Instagram
+schon durch `views` abgelöst. Der Adapter sucht deshalb jede Kennzahl
+einzeln und macht aus einer fehlenden eine Null, statt den Aufruf scheitern
+zu lassen. **Facebook kennt kein „Saves", Instagram keine Klicks** — beide
+Felder bleiben 0, und in der Auswertung dürfen Kanäle deshalb nicht über
+diese Zahlen hinweg verglichen werden.
+
+Nachgemessen ohne Netz:
+
+```
+venv\Scripts\python.exe pruefe_meta.py    81 Fälle
+```
 
 ## Zeitplan
 

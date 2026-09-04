@@ -12,18 +12,28 @@ Google Business Profile hat einen Adapter, ist aber nicht aktiv: der
 API-Zugang muss bei Google erst beantragt und freigeschaltet werden, und bis
 dahin führt jede Auswahl nur zu einem 403. Das ist kein Versehen, sondern
 der Unterschied zwischen "gebaut" und "benutzbar".
+
+X ist der letzte ohne Adapter. Die Zugangsfelder stehen trotzdem schon da,
+siehe `ZUGANGSFELDER`.
 """
 
 from .basis import Kanal, KanalFehler, Zugangsfeld
 from .google_business import GoogleBusiness
+from .meta import Facebook, Instagram
 from .pinterest import Pinterest
 
 BEKANNT: dict[str, Kanal] = {
     "pinterest": Pinterest(),
     "google_business": GoogleBusiness(),
+    "instagram": Instagram(),
+    "facebook": Facebook(),
 }
 
-AKTIV = ("pinterest",)
+# Facebook und Instagram sind ab dem 04.09.2026 dabei. Anders als bei
+# Google gibt es hier nichts zu beantragen: solange nur eigene Konten
+# bedient werden, reicht eine App im Entwicklungsmodus, und der App Review
+# von Meta greift erst bei fremden Konten.
+AKTIV = ("pinterest", "instagram", "facebook")
 
 # Schlüssel und Anzeigename aller vorgesehenen Kanäle, in der Reihenfolge
 # der Oberfläche. Wird von den Migrationen benutzt, um `channels` zu füllen,

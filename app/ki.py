@@ -66,6 +66,8 @@ def anfrage_bauen(
     max_beschreibung: int,
     anzahl: int,
     affiliate_erlaubt: bool,
+    link_im_text: bool = False,
+    link_klickbar: bool = True,
 ) -> str:
     """Baut den Anfragetext. Ohne Netz, damit er sich prüfen lässt.
 
@@ -111,8 +113,32 @@ def anfrage_bauen(
         "- Die Vorschläge müssen sich deutlich unterscheiden, nicht nur in",
         "  einzelnen Wörtern. Verschiedene Blickwinkel, nicht dieselbe Aussage",
         "  in neuer Reihenfolge.",
-        "- Den Ziel-Link nicht in den Text schreiben, der wird getrennt gesetzt.",
     ]
+
+    # Wohin der Ziel-Link gehört, entscheidet die Plattform und nicht diese
+    # Datei: ein Pin hat ein eigenes Feld dafür, eine Bildunterschrift nicht.
+    # Stünde hier pauschal "nicht in den Text", führte jeder Beitrag auf
+    # Facebook und Instagram ins Leere.
+    if not link_im_text:
+        zeilen += [
+            "- Den Ziel-Link nicht in den Text schreiben, der wird getrennt "
+            "gesetzt.",
+        ]
+    elif link_klickbar:
+        zeilen += [
+            "- Der Ziel-Link gehört ans Ende des Textes, genau so wie er oben",
+            "  steht. Es gibt hier kein eigenes Feld dafür.",
+        ]
+    else:
+        # Instagram. Der Link steht dort als Text da und lässt sich nicht
+        # anklicken; ein "hier klicken" wäre eine Anweisung ins Nichts.
+        zeilen += [
+            "- Auf dieser Plattform sind Links im Text **nicht anklickbar**.",
+            "  Schreib den Ziel-Link trotzdem ans Ende, genau so wie er oben",
+            "  steht, damit man ihn abtippen oder kopieren kann. Fordere aber",
+            "  nicht zum Klicken oder Antippen auf und verweise nicht auf",
+            "  einen Link in der Biografie, den es vielleicht gar nicht gibt.",
+        ]
 
     if not affiliate_erlaubt:
         # Google Business Profile. Die Regel steht am Kanal, nicht als
