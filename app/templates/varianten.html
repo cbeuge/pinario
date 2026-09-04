@@ -20,6 +20,17 @@
            {% if not kann_erzeugen %}disabled{% endif %}>
     Bild dazu erzeugen
   </label>
+  {# Muss vor dem Klick dastehen. Wer nicht weiss, dass es Minuten dauert,
+     laedt die Seite neu oder klickt noch einmal — und dann laeuft alles
+     zweimal. #}
+  <p class="feldhilfe leise">
+    <strong>Das dauert.</strong> Der Text braucht rund eine halbe Minute, jedes
+    Bild noch einmal so lange. Bei acht Varianten mit Bild sind das mehrere
+    Minuten. Die Seite steht so lange still — nicht neu laden und nicht noch
+    einmal klicken, sonst läuft alles doppelt.<br>
+    Bilder mit <strong>Menschen</strong> liefert Gemini nicht. Beschreibt das
+    Briefing Personen, bleibt der Text stehen und sagt, dass das Bild fehlt.
+  </p>
 
   <div class="knopfreihe">
     <button type="submit" {% if not kann_erzeugen %}disabled{% endif %}>Erzeugen</button>

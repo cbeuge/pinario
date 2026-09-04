@@ -169,12 +169,55 @@ def kampagne(kampagne_id: int):
     for eintrag_kanal in db.session.scalars(select(Channel).order_by(Channel.id)):
         adapter = kanal(eintrag_kanal.key) if eintrag_kanal.key in BEKANNT else None
         verbindung = verknuepft.get(eintrag_kanal.id)
+        einstellungen = (verbindung.settings if verbindung else {}) or {}
+        verbunden = bool(db.session.scalar(
+            select(func.count(Account.id))
+            .where(Account.channel_id == eintrag_kanal.id)
+        ))
+
+        # Der Zustand in einem Wort, damit die Tabelle ihn nur anzeigen und
+        # nicht selbst zusammenreimen muss. Die Reihenfolge ist die des
+        # Weges: erst braucht es einen Adapter, dann ein Konto, dann muss
+        # der Kanal an dieser Kampagne eingeschaltet sein.
+        if eintrag_kanal.key not in BEKANNT:
+            zustand, hinweis = "vorbereitet", "Für diesen Kanal gibt es noch keinen Adapter."
+        elif eintrag_kanal.key not in AKTIV:
+            zustand, hinweis = "gesperrt", "Der Zugang zu dieser Plattform ist noch nicht freigeschaltet."
+        elif not verbunden:
+            zustand, hinweis = "kein Konto", "Unter Einstellungen verbinden. Ohne Konto überspringt der Zeitplan diesen Kanal."
+        elif not verbindung:
+            zustand, hinweis = "aus", "Für diese Kampagne noch nicht eingeschaltet."
+        else:
+            zustand, hinweis = "läuft", ""
+
+        # Wie viele Varianten es schon gibt, und wie viele davon der
+        # Zeitplan nehmen darf. Ohne die zweite Zahl sieht ein Kanal voll
+        # aus, obwohl nichts freigegeben ist und deshalb nichts rausgeht.
+        fertig = bereit = 0
+        if verbindung:
+            fertig = db.session.scalar(
+                select(func.count(ContentItem.id))
+                .where(ContentItem.campaign_channel_id == verbindung.id)
+            ) or 0
+            bereit = db.session.scalar(
+                select(func.count(ContentItem.id))
+                .where(
+                    ContentItem.campaign_channel_id == verbindung.id,
+                    ContentItem.status == "ready",
+                )
+            ) or 0
+
         zeilen.append({
             "kanal": eintrag_kanal,
             "verfuegbar": eintrag_kanal.key in AKTIV,
             "adapter": adapter,
             "verbindung": verbindung,
-            "einstellungen": (verbindung.settings if verbindung else {}) or {},
+            "einstellungen": einstellungen,
+            "verbunden": verbunden,
+            "zustand": zustand,
+            "hinweis": hinweis,
+            "varianten": fertig,
+            "freigegeben": bereit,
         })
 
     return render_template(

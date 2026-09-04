@@ -1,19 +1,39 @@
+# Diese Datei ist der Stand, der auf dem Server läuft. Sie war es eine
+# Weile nicht: Type=notify, Requires und die gunicorn-Schalter kamen beim
+# Ausrollen dazu und standen nur dort. Am 04.09.2026 nachgezogen — eine
+# Vorlage, nach der ein frischer Server anders läuft als der echte, ist
+# schlimmer als gar keine.
 [Unit]
-Description=pinario
+Description=pinario, kampagnengesteuertes Posten auf Social Media
 After=network.target postgresql.service
+Requires=postgresql.service
 
 [Service]
+Type=notify
 User=www-data
 Group=www-data
 WorkingDirectory=/var/www/pinario
 Environment="PATH=/var/www/pinario/venv/bin"
+Environment=PYTHONUNBUFFERED=1
 # --no-control-socket: seit gunicorn 25.1 wird sonst beim Start ein Control
 # Socket unter $HOME/.gunicorn angelegt. Das Heimatverzeichnis von www-data
 # ist /var/www, und das ist wegen ProtectSystem=strict schreibgeschützt.
 # Ergebnis wäre eine Fehlerzeile bei jedem Start. Gebraucht wird das Socket
 # nicht, gesteuert wird über systemctl. (Erfahrung aus betmaster.)
+#
+# --threads 4: ein Worker, der auf Gemini wartet, soll die Anwendung nicht
+# blockieren. Bei zwei Workern und ohne Threads genügen zwei gleichzeitige
+# Erzeugungen, und niemand kommt mehr auf die Seite.
+#
+# --timeout 400: Varianten erzeugen dauert. Ein Text braucht rund 40
+# Sekunden, jedes Bild noch einmal 20 bis 30, und acht Varianten auf einmal
+# sind erlaubt. Der Standard von 30 Sekunden würde den Worker mittendrin
+# abschießen. Der Wert liegt **unter** dem proxy_read_timeout von nginx,
+# damit im Zweifel der echte Fehler ankommt und nicht ein 504.
 ExecStart=/var/www/pinario/venv/bin/gunicorn \
     --workers 2 \
+    --threads 4 \
+    --timeout 400 \
     --bind 127.0.0.1:3008 \
     --no-control-socket \
     --access-logfile - \

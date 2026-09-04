@@ -5,6 +5,17 @@
 <p class="brotkrume"><a href="{{ url_for('haupt.uebersicht') }}">Übersicht</a></p>
 <h1>{{ kampagne.name }}</h1>
 
+{# Der Ablauf steht oben, weil die Seite sonst mehrere Formulare zeigt und
+   nicht verrät, in welcher Reihenfolge man sie benutzt. #}
+<ol class="ablauf">
+  <li><strong>Kanal einschalten</strong> und einstellen, wie oft und wann gepostet wird.</li>
+  <li><strong>Varianten erzeugen</strong> oder hochladen — mehrere Fassungen desselben Beitrags.</li>
+  <li><strong>Freigeben</strong>, was raus darf. Nur Freigegebenes nimmt der Zeitplan.</li>
+  <li><strong>Kampagne auf <code>active</code></strong> setzen. Dann vergibt der Zeitplan Termine und postet.</li>
+</ol>
+
+<h2>Kampagne</h2>
+
 <form method="post" action="{{ url_for('haupt.kampagne_bearbeiten', kampagne_id=kampagne.id) }}" class="maske">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
@@ -18,6 +29,21 @@
   <label for="briefing">Briefing</label>
   <textarea id="briefing" name="briefing" rows="6" maxlength="4000"
             placeholder="Was ist das Angebot, für wen, welcher Ton? Was darf auf keinen Fall behauptet werden?">{{ kampagne.briefing or '' }}</textarea>
+  {# Ohne diese Zeilen landet hier eine Regieanweisung statt einer
+     Beschreibung, und das Ergebnis ist ein Text über etwas, das es nicht
+     gibt. Die beiden Grenzen stehen dabei, weil sie sonst erst beim
+     Erzeugen auffallen — und dann als Fehler aussehen. #}
+  <p class="feldhilfe leise">
+    Beschreib das <strong>Angebot</strong>, nicht den Beitrag: was es ist, für
+    wen, welcher Ton, was auf keinen Fall behauptet werden darf. Was hier
+    steht, geht wörtlich an das Modell — und was <em>nicht</em> hier steht,
+    denkt es sich aus. Preise, Zahlen und Fristen also unbedingt
+    hinschreiben.<br>
+    Zwei Grenzen: <strong>Videos gehen noch nicht</strong>, es entstehen Text
+    und Bild. Und <strong>Menschen im Bild scheitern</strong> — beschreibt das
+    Briefing Personen, liefert Gemini kein Bild und der Text bleibt allein
+    stehen.
+  </p>
 
   <label for="status">Status</label>
   <select id="status" name="status">
@@ -25,6 +51,10 @@
       <option value="{{ wert }}" {% if kampagne.status == wert %}selected{% endif %}>{{ wert }}</option>
     {% endfor %}
   </select>
+  <p class="feldhilfe leise">
+    Nur <code>active</code> wird gepostet. <code>draft</code> heißt: alles
+    lässt sich vorbereiten, es geht nur nichts raus.
+  </p>
 
   <div class="knopfreihe">
     <button type="submit">Speichern</button>
@@ -33,68 +63,115 @@
 
 <h2>Kanäle</h2>
 
-{% for zeile in zeilen %}
-  <section class="kanalkasten {{ 'an' if zeile.verbindung else '' }}">
-    <h3>
-      {{ zeile.kanal.name }}
-      {% if zeile.verbindung %}<span class="marker">läuft</span>{% endif %}
-    </h3>
-
-    {% if not zeile.verfuegbar %}
-      <p class="leise">
-        {% if zeile.adapter %}Zugang fehlt{% else %}vorbereitet{% endif %}
-      </p>
-    {% else %}
-      <form method="post" action="{{ url_for('haupt.kampagne_kanal', kampagne_id=kampagne.id, channel_id=zeile.kanal.id) }}" class="maske eng">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-
-        <label for="quelle-{{ zeile.kanal.id }}">Inhalte</label>
-        <select id="quelle-{{ zeile.kanal.id }}" name="content_source">
-          {% set gewaehlt = zeile.verbindung.content_source if zeile.verbindung else 'ai_generated' %}
-          {% for wert in quellen %}
-            <option value="{{ wert }}" {% if gewaehlt == wert %}selected{% endif %}>
-              {{ 'erzeugen' if wert == 'ai_generated' else 'selbst hochladen' }}
-            </option>
-          {% endfor %}
-        </select>
-
-        <label for="proTag-{{ zeile.kanal.id }}">Beiträge pro Tag</label>
-        <input type="number" id="proTag-{{ zeile.kanal.id }}" name="posts_per_day"
-               min="1" max="25" required
-               value="{{ zeile.einstellungen.get('posts_per_day', 3) }}">
-
-        {% set fenster = zeile.einstellungen.get('time_window', ['09:00', '21:00']) %}
-        <label>Zeitfenster</label>
-        <div class="zeitpaar">
-          <input type="time" name="zeit_von" required value="{{ fenster[0] }}">
-          <span>bis</span>
-          <input type="time" name="zeit_bis" required value="{{ fenster[1] }}">
-        </div>
-
-        {% if zeile.adapter and zeile.adapter.unterstuetzt_ablagen %}
-          <label for="ablagen-{{ zeile.kanal.id }}">
-            {{ zeile.adapter.ablage_mehrzahl }}, eine Kennung je Zeile
-          </label>
-          <textarea id="ablagen-{{ zeile.kanal.id }}" name="board_ids" rows="3"
-                    placeholder="Kennung">{{ zeile.einstellungen.get('board_ids', []) | join('\n') }}</textarea>
+<div class="tabellenrahmen">
+<table class="liste kanaltabelle">
+  <thead>
+    <tr>
+      <th>Kanal</th>
+      <th>Zustand</th>
+      <th>Inhalte</th>
+      <th class="zahl">pro Tag</th>
+      <th>Zeitfenster</th>
+      <th>Varianten</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for zeile in zeilen %}
+      {% set fenster = zeile.einstellungen.get('time_window', ['09:00', '21:00']) %}
+      <tr class="{{ 'an' if zeile.verbindung else 'still' }} {{ 'hatformular' if zeile.verfuegbar else '' }}">
+        <td>{{ zeile.kanal.name }}</td>
+        <td><span class="marker {{ 'still' if zeile.zustand != 'läuft' else '' }}">{{ zeile.zustand }}</span></td>
+        {% if zeile.verbindung %}
+          <td>{{ 'erzeugen' if zeile.verbindung.content_source == 'ai_generated' else 'hochladen' }}</td>
+          <td class="zahl">{{ zeile.einstellungen.get('posts_per_day', 3) }}</td>
+          <td>{{ fenster[0] }}–{{ fenster[1] }}</td>
+          {# Zwei Zahlen, weil die erste allein täuscht: ein Kanal kann
+             voller Varianten sein und trotzdem nichts posten, solange
+             keine davon freigegeben ist. #}
+          <td>{{ zeile.freigegeben }} von {{ zeile.varianten }} frei</td>
+          <td>
+            <a href="{{ url_for('haupt.varianten', verbindung_id=zeile.verbindung.id) }}">Varianten</a>
+          </td>
+        {% else %}
+          <td colspan="4" class="leise">{{ zeile.hinweis }}</td>
+          <td>
+            {% if zeile.zustand == 'kein Konto' %}
+              <a href="{{ url_for('haupt.einstellungen_seite') }}">verbinden</a>
+            {% endif %}
+          </td>
         {% endif %}
+      </tr>
 
-        <div class="knopfreihe">
-          <button type="submit">{{ 'Speichern' if zeile.verbindung else 'Einschalten' }}</button>
-          {% if zeile.verbindung %}
-            <button type="submit" name="aktion" value="entfernen" class="textknopf">Ausschalten</button>
-          {% endif %}
-        </div>
-      </form>
+      {% if zeile.verfuegbar %}
+        <tr class="aufklapp">
+          <td colspan="7">
+            {# Aufgeklappt, sobald ein Konto da ist und der Kanal noch nicht
+               eingeschaltet — das ist genau der Moment, in dem etwas zu tun
+               ist. Sonst zugeklappt, damit die Tabelle eine Tabelle bleibt. #}
+            <details {% if not zeile.verbindung and zeile.verbunden %}open{% endif %}>
+              {# Der Hinweis steht schon in der Zeile darueber und wird hier
+                 nicht wiederholt. #}
+              <summary>{{ 'Einstellungen ändern' if zeile.verbindung else 'Für diese Kampagne einschalten' }}</summary>
 
-      {% if zeile.verbindung %}
-        <p class="kastenfuss">
-          <a href="{{ url_for('haupt.varianten', verbindung_id=zeile.verbindung.id) }}">Varianten</a>
-        </p>
+              <form method="post" action="{{ url_for('haupt.kampagne_kanal', kampagne_id=kampagne.id, channel_id=zeile.kanal.id) }}" class="maske eng">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                <label for="quelle-{{ zeile.kanal.id }}">Inhalte</label>
+                <select id="quelle-{{ zeile.kanal.id }}" name="content_source">
+                  {% set gewaehlt = zeile.verbindung.content_source if zeile.verbindung else 'ai_generated' %}
+                  {% for wert in quellen %}
+                    <option value="{{ wert }}" {% if gewaehlt == wert %}selected{% endif %}>
+                      {{ 'erzeugen' if wert == 'ai_generated' else 'selbst hochladen' }}
+                    </option>
+                  {% endfor %}
+                </select>
+
+                <label for="proTag-{{ zeile.kanal.id }}">Beiträge pro Tag</label>
+                <input type="number" id="proTag-{{ zeile.kanal.id }}" name="posts_per_day"
+                       min="1" max="25" required
+                       value="{{ zeile.einstellungen.get('posts_per_day', 3) }}">
+
+                <label>Zeitfenster</label>
+                <div class="zeitpaar">
+                  <input type="time" name="zeit_von" required value="{{ fenster[0] }}">
+                  <span>bis</span>
+                  <input type="time" name="zeit_bis" required value="{{ fenster[1] }}">
+                </div>
+
+                {% if zeile.adapter and zeile.adapter.unterstuetzt_ablagen %}
+                  <label for="ablagen-{{ zeile.kanal.id }}">
+                    {{ zeile.adapter.ablage_mehrzahl }}, eine Kennung je Zeile
+                  </label>
+                  <textarea id="ablagen-{{ zeile.kanal.id }}" name="board_ids" rows="3"
+                            placeholder="Kennung">{{ zeile.einstellungen.get('board_ids', []) | join('\n') }}</textarea>
+                  <p class="feldhilfe leise">
+                    Die Kennungen stehen unter
+                    <a href="{{ url_for('haupt.einstellungen_seite') }}">Einstellungen</a>
+                    beim verbundenen Konto. Mehrere bekommen reihum etwas ab.
+                  </p>
+                {% elif zeile.adapter %}
+                  <p class="feldhilfe leise">
+                    {{ zeile.kanal.name }} kennt keine Unterordnung — gepostet wird
+                    auf das verbundene Konto.
+                  </p>
+                {% endif %}
+
+                <div class="knopfreihe">
+                  <button type="submit">{{ 'Speichern' if zeile.verbindung else 'Einschalten' }}</button>
+                  {% if zeile.verbindung %}
+                    <button type="submit" name="aktion" value="entfernen" class="textknopf gefaehrlich">Ausschalten</button>
+                  {% endif %}
+                </div>
+              </form>
+            </details>
+          </td>
+        </tr>
       {% endif %}
-    {% endif %}
-  </section>
-{% endfor %}
+    {% endfor %}
+  </tbody>
+</table>
+</div>
 
 <h2>Kampagne löschen</h2>
 {% if loeschbar %}

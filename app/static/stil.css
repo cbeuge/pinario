@@ -386,3 +386,47 @@ code {
   padding: 0;
   font-size: .78rem;
 }
+
+/* --- Kampagnen-Seite ------------------------------------------------- */
+
+/* Der Ablauf oben. Vier Schritte, damit die Seite nicht nur zeigt, was
+   sich einstellen lässt, sondern auch in welcher Reihenfolge. */
+.ablauf {
+  margin: 0 0 1.5rem;
+  padding: .9rem 1rem .9rem 2.2rem;
+  background: var(--flaeche);
+  border: 1px solid var(--rand);
+  border-radius: 8px;
+  color: var(--text-leise);
+  font-size: .9rem;
+  line-height: 1.7;
+}
+.ablauf strong { color: var(--text); }
+
+/* Hilfe unter einem Feld. Sagt, was hineingehört, und nicht, warum das
+   Feld existiert — das Warum steht im Vault. */
+.feldhilfe {
+  margin: .35rem 0 0;
+  font-size: .82rem;
+  line-height: 1.55;
+}
+.maske .feldhilfe { margin-bottom: .4rem; }
+
+/* Eine breite Tabelle darf scrollen, aber die Seite nicht. */
+.tabellenrahmen { overflow-x: auto; }
+.kanaltabelle { min-width: 44rem; }
+.kanaltabelle tr.still td { color: var(--text-leise); }
+
+/* Formularzeile und Datenzeile gehören zusammen und werden deshalb von
+   einer einzigen Linie abgeschlossen, nicht von zweien. Die Klasse steht
+   an der Datenzeile, statt sie über `:has()` zu suchen — das spart die
+   Frage, ab welchem Browser das geht. */
+.kanaltabelle tr.hatformular > td { border-bottom: none; padding-bottom: .2rem; }
+.kanaltabelle tr.aufklapp > td { padding-top: 0; padding-bottom: 1rem; }
+.kanaltabelle details > summary {
+  color: var(--text-leise);
+  cursor: pointer;
+  font-size: .85rem;
+}
+.kanaltabelle details > summary:hover { color: var(--text); }
+.kanaltabelle details[open] > summary { margin-bottom: .5rem; }
