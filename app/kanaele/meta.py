@@ -397,6 +397,7 @@ class Facebook(MetaKanal):
             unterstuetzt_ablagen=True,
             ablage_bezeichnung="Seite",
             ablage_mehrzahl="Seiten",
+            anmelde_ursprung="https://www.facebook.com",
             # Video braucht bei Meta einen eigenen, mehrstufigen Weg, und
             # die Anwendung erzeugt bisher keine Videos. Dieselbe
             # Entscheidung wie bei Pinterest, aus demselben Grund: sonst
@@ -510,6 +511,7 @@ class Instagram(MetaKanal):
             unterstuetzt_ablagen=True,
             ablage_bezeichnung="Konto",
             ablage_mehrzahl="Konten",
+            anmelde_ursprung="https://www.facebook.com",
             typen=("image",),
             # Instagram schneidet die Bildunterschrift hier ab.
             max_beschreibung=2200,

@@ -446,6 +446,21 @@ eingetragen sein. Käme sie aus `request.url_root`, hieße sie über
 `www.pinario.de` plötzlich anders als über `pinario.de` — und Pinterest weist
 den Rückruf dann mit einem `invalid_grant` ab, das nicht sagt, woran es lag.
 
+**Die CSP muss die Weiterleitung durchlassen.** Der teuerste Fehler des
+04.09.2026, und der mit den wenigsten Spuren: `form-action 'self'` verbietet
+nicht nur, ein Formular woandershin zu schicken, sondern auch die
+**Weiterleitung, die auf einen Formular-POST folgt**. Der Knopf „Konto
+verbinden" ist so ein Formular. Der Browser verwarf die Antwort
+stillschweigend — keine Meldung auf der Seite, keine Zeile im Server-Log
+außer „Verbinden gestartet", der Knopf tat einfach nichts. Nachgestellt mit
+zwei Seiten, die sich nur in der CSP unterschieden: mit der alten blieb die
+Seite stehen, mit der neuen kam die Weiterleitung an.
+
+Die erlaubten Ziele kommen deshalb aus den Adaptern (`anmelde_ursprung` am
+Kanal, gesammelt in `kanaele.anmelde_urspruenge`) und nicht aus einer Liste
+in `create_app`. Eine Liste dort würde beim nächsten Kanal vergessen, und
+der Fehler sähe wieder aus wie ein kaputter Knopf.
+
 **Der `zustand` ist kein Beiwerk.** Er wird gewürfelt, liegt in der Sitzung
 und muss beim Rückruf wieder passen. Ohne diese Prüfung könnte jemand einem
 angemeldeten Nutzer einen Rückruf mit *seinem* Code unterschieben, und ab da

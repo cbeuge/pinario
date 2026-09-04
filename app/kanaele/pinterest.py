@@ -205,6 +205,7 @@ class Pinterest(Kanal):
             unterstuetzt_ablagen=True,
             ablage_bezeichnung="Board",
             ablage_mehrzahl="Boards",
+            anmelde_ursprung="https://www.pinterest.com",
             # Nur Bild, siehe Punkt 4 im Kopf dieser Datei.
             typen=("image",),
             # Pinterest schneidet die Beschreibung eines Pins hier ab.

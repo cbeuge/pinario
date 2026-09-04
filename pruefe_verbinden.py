@@ -52,7 +52,7 @@ from sqlalchemy import select
 from app import create_app
 from app.config import Config
 from app.extensions import db
-from app.kanaele import BEKANNT, KanalFehler
+from app.kanaele import BEKANNT, KanalFehler, anmelde_urspruenge
 from app.models import Account, Channel, User
 from app.zeit import jetzt
 
@@ -73,6 +73,9 @@ class Adapter:
     unterstuetzt_ablagen = True
     ablage_bezeichnung = "Board"
     ablage_mehrzahl = "Boards"
+    # Muss dastehen wie beim echten Adapter: daraus baut sich die
+    # form-action der CSP, siehe unten.
+    anmelde_ursprung = "https://www.pinterest.com"
 
     def __init__(self):
         self.zustaende = []
@@ -308,6 +311,29 @@ def _messen(app, adapter, kanal_zeile, nutzer):  # noqa: C901
 
     antwort = client.post("/kanaele/pinterest/verbinden", data={})
     pruefe("Verbinden ohne CSRF-Token wird abgewiesen", antwort.status_code == 400)
+
+    # --- Die CSP muss die Weiterleitung durchlassen -------------------
+    #
+    # Am 04.09.2026 der teuerste Fehler des Tages: `form-action 'self'`
+    # verbietet nicht nur, ein Formular woandershin zu schicken, sondern
+    # auch die **Weiterleitung**, die auf einen Formular-POST folgt. Der
+    # Browser verwirft sie stillschweigend -- keine Meldung auf der Seite,
+    # keine Zeile im Server-Log, der Knopf tut einfach nichts. Nachgestellt
+    # mit zwei Seiten, die sich nur in der CSP unterscheiden: mit der alten
+    # blieb die Seite stehen, mit der neuen kam die Weiterleitung an.
+    antwort = client.get("/einstellungen")
+    csp = antwort.headers.get("Content-Security-Policy", "")
+    regel = ""
+    for teil in csp.split(";"):
+        if teil.strip().startswith("form-action"):
+            regel = teil.strip()
+
+    pruefe("Die CSP hat eine form-action-Regel", bool(regel))
+    pruefe("Eigene Formulare gehen weiter", "'self'" in regel)
+    for ursprung in anmelde_urspruenge():
+        pruefe(f"Weiterleitung zu {ursprung} ist erlaubt", ursprung in regel)
+    pruefe("Und nicht einfach alles",
+           "*" not in regel and "https:" not in regel.replace("https://", ""))
 
     # --- Hinweg --------------------------------------------------------
 

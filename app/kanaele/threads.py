@@ -124,6 +124,7 @@ class Threads(Kanal):
             name="Threads",
             # Siehe den Kopf: es gibt hier nichts, wohin man wählen könnte.
             unterstuetzt_ablagen=False,
+            anmelde_ursprung="https://threads.net",
             typen=("image",),
             max_beschreibung=MAX_TEXT,
             bild_format="1:1",

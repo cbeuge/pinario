@@ -67,6 +67,14 @@ def create_app(config_klasse: type[Config] = Config) -> Flask:
     app.jinja_env.filters["uhrzeit"] = formatiere_uhrzeit
     app.jinja_env.filters["datum"] = formatiere_datum
 
+    # Wohin ein Formular führen darf. "self" plus die Anmelde-Adressen der
+    # Kanäle, und die kommen aus den Adaptern statt aus einer Liste hier —
+    # sonst wird beim nächsten Kanal genau das vergessen, was am 04.09.2026
+    # einen Nachmittag gekostet hat. Siehe `kanaele.anmelde_urspruenge`.
+    from .kanaele import anmelde_urspruenge
+
+    formular_ziele = " ".join(("'self'", *anmelde_urspruenge()))
+
     @app.after_request
     def sicherheits_header(antwort):
         antwort.headers.setdefault("X-Content-Type-Options", "nosniff")
@@ -76,10 +84,17 @@ def create_app(config_klasse: type[Config] = Config) -> Flask:
         # muss diese Zeile mitziehen, sonst fällt die Funktion still aus.
         # img-src erlaubt data:, weil erzeugte Vorschaubilder so eingebettet
         # werden; blob: für Vorschauen vor dem Hochladen.
+        #
+        # **form-action ist die Zeile, die schon einmal zugeschlagen hat.**
+        # Der Knopf "Konto verbinden" ist ein Formular, und die Antwort
+        # darauf ist eine Weiterleitung zur Plattform. Browser prüfen auch
+        # diese Weiterleitung gegen form-action und verwerfen sie
+        # stillschweigend, wenn das Ziel fehlt: keine Meldung auf der Seite,
+        # keine Zeile im Server-Log, der Knopf tut einfach nichts.
         antwort.headers.setdefault(
             "Content-Security-Policy",
             "default-src 'self'; img-src 'self' data: blob:; style-src 'self'; "
-            "script-src 'self'; base-uri 'none'; form-action 'self'; "
+            f"script-src 'self'; base-uri 'none'; form-action {formular_ziele}; "
             "frame-ancestors 'none'",
         )
         return antwort

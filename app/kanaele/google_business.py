@@ -72,6 +72,7 @@ class GoogleBusiness(Kanal):
             typen=("image",),
             max_beschreibung=MAX_ZUSAMMENFASSUNG,
             affiliate_erlaubt=False,
+            anmelde_ursprung="https://accounts.google.com",
         )
 
     def anmelde_adresse(self, zustand: str) -> str:

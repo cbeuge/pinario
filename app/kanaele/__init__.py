@@ -121,6 +121,22 @@ ZUGANGSFELDER: dict[str, tuple[Zugangsfeld, ...]] = {
 }
 
 
+def anmelde_urspruenge() -> tuple[str, ...]:
+    """Alle Adressen, zu denen beim Verbinden weitergeleitet wird.
+
+    Geht in die `form-action` der Content-Security-Policy. Fehlt eine davon,
+    verwirft der Browser die Weiterleitung nach dem Formular-POST — ohne
+    Fehler auf der Seite und ohne Spur im Server-Log. Der Knopf tut dann
+    nichts, und man sucht den Fehler überall, nur nicht in der CSP.
+
+    Abgeleitet aus den Adaptern und nicht von Hand gepflegt: eine zweite
+    Liste würde beim nächsten Kanal vergessen.
+    """
+    return tuple(sorted({
+        k.anmelde_ursprung for k in BEKANNT.values() if k.anmelde_ursprung
+    }))
+
+
 def rueckruf_pfad(key: str) -> str:
     """Der Pfad, an den die Plattform nach dem Verbinden zurückschickt.
 
@@ -161,6 +177,7 @@ __all__ = [
     "Kanal",
     "KanalFehler",
     "Zugangsfeld",
+    "anmelde_urspruenge",
     "kanal",
     "rueckruf_adresse",
     "rueckruf_pfad",

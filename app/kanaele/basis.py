@@ -130,6 +130,19 @@ class Kanal:
     # weg; Facebook zeigt quer. Ein Bild im falschen Format ist kein
     # Fehler, den jemand meldet — es sieht nur immer etwas daneben aus.
     bild_format: str = "1:1"
+    # Wohin der Browser beim Verbinden geschickt wird, nur Schema und Host.
+    #
+    # **Das steht hier wegen der Content-Security-Policy.** Der Knopf "Konto
+    # verbinden" ist ein Formular; die Antwort darauf ist eine Weiterleitung
+    # zur Plattform. Browser prüfen solche Weiterleitungen gegen
+    # `form-action`, und was dort fehlt, wird **stillschweigend** verworfen —
+    # kein Fehler auf der Seite, keine Zeile im Server-Log, der Knopf tut
+    # einfach nichts. Am 04.09.2026 genau daran hängengeblieben.
+    #
+    # Weil der Wert am Kanal steht, zieht die CSP bei einem neuen Adapter von
+    # selbst nach. Eine Liste in `create_app` würde beim nächsten Kanal
+    # vergessen, und der Fehler sähe wieder aus wie ein kaputter Knopf.
+    anmelde_ursprung: str = ""
 
     # --- Verbinden -----------------------------------------------------
 
