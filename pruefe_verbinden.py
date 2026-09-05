@@ -105,6 +105,7 @@ class Adapter(Kanal):
         # scheitert. Beides wird von aussen gesetzt.
         self.fehlt = []
         self.rechte_wirft = None
+        self.gepostet = []
         self.antwort = {
             "zugang": "zugang-1",
             "erneuerung": "erneuern-1",
@@ -128,6 +129,17 @@ class Adapter(Kanal):
         if self.wirft:
             raise self.wirft
         return dict(self.antwort)
+
+    def veroeffentlichen(self, zugang, *, titel, beschreibung, ziel_url,
+                         datei, ablage_id, typ="image"):
+        from app.kanaele.basis import Veroeffentlichung
+
+        self.gepostet.append({
+            "titel": titel, "beschreibung": beschreibung,
+            "ziel_url": ziel_url, "datei": datei, "ablage_id": ablage_id,
+            "typ": typ,
+        })
+        return Veroeffentlichung(plattform_id="pin-1", ablage_id=ablage_id)
 
     def fehlende_rechte(self, zugang):
         if self.rechte_wirft:
@@ -371,6 +383,22 @@ def _kasten(seite: str, kanal_key: str) -> str:
     marke = f'/kanaele/{kanal_key}/'
     teile = seite.split('<section class="kanalkasten')
     for teil in teile:
+        if marke in teil:
+            return teil
+    return ""
+
+
+def _kanalformular(seite: str, kanal_id: int) -> str:
+    """Nur das Einstellungs-Formular dieses Kanals auf der Kampagnen-Seite.
+
+    Dieselbe Falle wie bei `_kasten`, und sie ist hier zugeschnappt: die
+    Kampagnen-Seite zeigt **alle** freigeschalteten Kanaele, und Instagram
+    bringt das Haekchen "Link in der Biografie" von sich aus mit. Wer auf
+    der ganzen Seite danach sucht, findet es also immer -- die Pruefung
+    "steht bei Pinterest nicht da" bestand dann, ohne etwas zu messen.
+    """
+    marke = f'/kanal/{kanal_id}"'
+    for teil in seite.split('<tr class="aufklapp">'):
         if marke in teil:
             return teil
     return ""
@@ -1189,6 +1217,114 @@ def _messen(app, adapter, kanal_zeile, nutzer):  # noqa: C901
     db.session.commit()
     zweite.status = "draft"
     db.session.commit()
+
+    # --- Link in der Biografie ----------------------------------------
+    #
+    # Bei Instagram ist eine nackte Adresse in der Bildunterschrift nicht
+    # anklickbar. Steht der Link im Profil, gehoert er gar nicht erst in den
+    # Text -- aber ob er dort steht, kann pinario nicht sehen, das sagt der
+    # Nutzer. Der teure Fehler waere ein Text, der auf die Bio verweist und
+    # die Adresse trotzdem darunter schreibt.
+
+    adapter.link_im_text = True
+    adapter.link_klickbar = False
+
+    seite = _kanalformular(
+        client.get(f"/kampagnen/{zweite.id}").data.decode(), kanal_zeile.id
+    )
+    pruefe("Das Haekchen steht am Kanal, der es braucht",
+           'name="link_in_bio"' in seite)
+
+    _speichern2 = lambda **ab: client.post(
+        f"/kampagnen/{zweite.id}/kanal/{kanal_zeile.id}",
+        data={
+            "csrf_token": _token(client),
+            "content_source": "ai_generated",
+            "posts_per_day": "1",
+            "zeit_von": "09:00",
+            "zeit_bis": "21:00",
+            "ablagen_gewaehlt": "ja",
+            "board_ids": ["7"],
+            **ab,
+        },
+        follow_redirects=True,
+    )
+
+    _speichern2(link_in_bio="ja")
+    db.session.refresh(neue_verbindung)
+    pruefe("Angehakt wird es gespeichert",
+           neue_verbindung.settings.get("link_in_bio") is True)
+
+    _speichern2()
+    db.session.refresh(neue_verbindung)
+    pruefe("Ohne Haken wird es wieder ausgeschaltet",
+           neue_verbindung.settings.get("link_in_bio") is False)
+
+    # Auf einem Kanal mit anklickbarem Link hat das Haekchen nichts zu
+    # suchen: eine Einstellung ohne Wirkung ist schlimmer als keine.
+    adapter.link_im_text = False
+    adapter.link_klickbar = True
+    seite = _kanalformular(
+        client.get(f"/kampagnen/{zweite.id}").data.decode(), kanal_zeile.id
+    )
+    pruefe("Auf einem Kanal mit Link-Feld steht es nicht da",
+           'name="link_in_bio"' not in seite)
+    pruefe("Und der Ausschnitt misst wirklich diesen Kanal",
+           seite and 'name="posts_per_day"' in seite)
+
+    _speichern2(link_in_bio="ja")
+    db.session.refresh(neue_verbindung)
+    pruefe("Und laesst sich dort auch nicht unterschieben",
+           "link_in_bio" not in (neue_verbindung.settings or {}))
+
+    # Der zweite Teil: was beim Posten wirklich ankommt.
+    adapter.link_im_text = True
+    adapter.link_klickbar = False
+    client.post("/kanaele/pinterest/verbinden", data={"csrf_token": _token(client)})
+    client.get(f"/kanaele/pinterest/rueckruf?code=bio&state={adapter.zustaende[-1]}")
+
+    from app.zeitplan import _einen_posten
+
+    zweite.status = "active"
+    db.session.commit()
+
+    def _posten_mit(bio: bool) -> str:
+        adapter.gepostet.clear()
+        _speichern2(**({"link_in_bio": "ja"} if bio else {}))
+        db.session.refresh(neue_verbindung)
+        eintrag = CI(
+            campaign_channel_id=neue_verbindung.id, variant_group="bio",
+            type="image", quelle="upload", title="T", description="Text",
+            file_path="hochgeladen/x.jpg", status="ready",
+        )
+        db.session.add(eintrag)
+        db.session.commit()
+        _einen_posten(eintrag, neue_verbindung, adapter,
+                      _konto(kanal_zeile.id))
+        return adapter.gepostet[-1]["ziel_url"]
+
+    pruefe("Ohne das Haekchen bekommt der Kanal die Ziel-Adresse",
+           _posten_mit(False) == "https://example.de")
+    pruefe("Mit dem Haekchen bekommt er keine",
+           _posten_mit(True) == "")
+
+    # Erst die Veroeffentlichungen, dann die Varianten: `posted_items` haelt
+    # einen Fremdschluessel darauf, und andersherum weist Postgres es ab.
+    from app.models import PostedItem as PI2
+
+    bio_ids = [
+        zeile.id for zeile in db.session.scalars(
+            select(CI).where(CI.variant_group == "bio")
+        )
+    ]
+    if bio_ids:
+        db.session.execute(delete(PI2).where(PI2.content_item_id.in_(bio_ids)))
+        db.session.execute(delete(CI).where(CI.id.in_(bio_ids)))
+    db.session.commit()
+    zweite.status = "draft"
+    db.session.commit()
+    adapter.link_im_text = False
+    adapter.link_klickbar = True
 
     # --- Status von der Uebersicht aus --------------------------------
 

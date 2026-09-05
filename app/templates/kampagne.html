@@ -234,6 +234,22 @@
                   </p>
                 {% endif %}
 
+                {# Nur wo der Link im Text landen müsste und dort nicht
+                   anklickbar ist, also bei Instagram. Ob er im Profil
+                   steht, kann pinario nicht sehen. #}
+                {% if zeile.adapter and zeile.adapter.link_im_text
+                      and not zeile.adapter.link_klickbar %}
+                  <label class="kasten">
+                    <input type="checkbox" name="link_in_bio" value="ja"
+                           {% if zeile.einstellungen.get('link_in_bio') %}checked{% endif %}>
+                    Die Ziel-Adresse steht in der Biografie des Profils
+                  </label>
+                  <p class="feldhilfe leise">
+                    Dann steht sie nicht mehr im Beitragstext, und der Text
+                    verweist stattdessen auf den Link im Profil.
+                  </p>
+                {% endif %}
+
                 <div class="knopfreihe">
                   <button type="submit">{{ 'Speichern' if zeile.verbindung else 'Einschalten' }}</button>
                   {% if zeile.verbindung %}

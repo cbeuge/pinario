@@ -76,6 +76,16 @@ ENTHALTEN = [
     ("Instagram: kein Verweis auf den Link in der Biografie",
      {"link_im_text": True, "link_klickbar": False},
      ["Biografie"]),
+    # Steht der Link im Profil, ist "Link in der Bio" dort das Uebliche --
+    # eine nackte Adresse in der Bildunterschrift kann man nicht antippen.
+    # Die Angabe kommt vom Nutzer: ob der Link dort steht, weiss nur, wer
+    # das Profil pflegt.
+    ("Link in der Bio: die Adresse bleibt aus dem Text",
+     {"link_im_text": True, "link_klickbar": False, "link_in_bio": True},
+     ["nicht** in den Text"]),
+    ("Link in der Bio: der Text verweist aufs Profil",
+     {"link_im_text": True, "link_klickbar": False, "link_in_bio": True},
+     ["Link in der Biografie", "ohne die Adresse zu nennen"]),
     # Der Text zu einer hochgeladenen Datei. Ohne diese Zeilen sieht das
     # Modell das Bild zwar, haelt es aber fuer Beiwerk und schreibt am Motiv
     # vorbei -- der Beitrag beschreibt dann etwas anderes als das Bild
@@ -97,6 +107,16 @@ FEHLEN = [
      {"link_im_text": True}, ["nicht anklickbar"]),
     ("Ohne Vorlage kein Hinweis auf ein Bild", {}, ["Oben steht das Bild"]),
     ("Mit Briefing: kein Luecken-Hinweis", {}, ["gibt es nicht"]),
+    # Der teure Fall: beides zugleich waere ein Text, der auf die Bio
+    # verweist und die Adresse trotzdem darunter schreibt.
+    ("Link in der Bio: kein Abtippen-Hinweis daneben",
+     {"link_im_text": True, "link_klickbar": False, "link_in_bio": True},
+     ["abtippen oder kopieren", "ans Ende des Textes"]),
+    # Und ohne das Haekchen bleibt es beim alten Verhalten. Ein "Link in
+    # der Bio", den es nicht gibt, schickt jeden Leser ins Leere.
+    ("Ohne das Haekchen kein Verweis aufs Profil",
+     {"link_im_text": True, "link_klickbar": False},
+     ["Verweise am Ende stattdessen"]),
 ]
 
 

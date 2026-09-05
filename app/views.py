@@ -416,6 +416,11 @@ def kampagne_kanal(kampagne_id: int, channel_id: int):
             ),
             "weekdays": formular.wochentage(request.form.getlist("weekdays")),
         }
+        # Nur da, wo sie etwas ändert. Auf einem Kanal mit anklickbarem
+        # Link wäre das Häkchen eine Einstellung ohne Wirkung, und die ist
+        # schlimmer als keine: man hakt sie an und wundert sich.
+        if adapter.link_im_text and not adapter.link_klickbar:
+            einstellungen["link_in_bio"] = request.form.get("link_in_bio") == "ja"
         if adapter.unterstuetzt_ablagen:
             if request.form.get("ablagen_gewaehlt") == "ja":
                 # Die Auswahl aus Kästchen. `getlist` und nicht `get`: ohne
@@ -658,6 +663,7 @@ def varianten_erzeugen(verbindung_id: int):
         affiliate_erlaubt=adapter.affiliate_erlaubt,
         link_im_text=adapter.link_im_text,
         link_klickbar=adapter.link_klickbar,
+        link_in_bio=bool((verbindung.settings or {}).get("link_in_bio")),
     )
 
     try:
@@ -844,6 +850,7 @@ def variante_hochladen(verbindung_id: int):
         affiliate_erlaubt=adapter.affiliate_erlaubt,
         link_im_text=adapter.link_im_text,
         link_klickbar=adapter.link_klickbar,
+        link_in_bio=bool((verbindung.settings or {}).get("link_in_bio")),
         zu_vorlage=typ == "image",
     )
 

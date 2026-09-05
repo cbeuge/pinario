@@ -68,6 +68,7 @@ def anfrage_bauen(
     affiliate_erlaubt: bool,
     link_im_text: bool = False,
     link_klickbar: bool = True,
+    link_in_bio: bool = False,
     zu_vorlage: bool = False,
 ) -> str:
     """Baut den Anfragetext. Ohne Netz, damit er sich prüfen lässt.
@@ -141,9 +142,27 @@ def anfrage_bauen(
             "- Der Ziel-Link gehört ans Ende des Textes, genau so wie er oben",
             "  steht. Es gibt hier kein eigenes Feld dafür.",
         ]
+    elif link_in_bio:
+        # Instagram, und der Link steht im Profil. Das ist dort das
+        # Übliche: eine nackte Adresse in der Bildunterschrift kann man
+        # nicht antippen, sie zerreißt den Text und sieht nach Werbung aus.
+        #
+        # **Diese Angabe kommt vom Nutzer, nicht vom Kanal.** Ob der Link
+        # in der Biografie steht, weiß nur, wer das Profil pflegt. Vorher
+        # war der Verweis darauf ausdrücklich verboten, und das war
+        # richtig: ein "Link in der Bio", den es nicht gibt, schickt jeden
+        # Leser ins Leere.
+        zeilen += [
+            "- Den Ziel-Link **nicht** in den Text schreiben. Auf dieser",
+            "  Plattform ist er im Text nicht anklickbar, und er steht im",
+            "  Profil.",
+            "- Verweise am Ende stattdessen auf den Link in der Biografie,",
+            "  in eigenen Worten und ohne die Adresse zu nennen.",
+        ]
     else:
-        # Instagram. Der Link steht dort als Text da und lässt sich nicht
-        # anklicken; ein "hier klicken" wäre eine Anweisung ins Nichts.
+        # Instagram ohne Link im Profil. Der Link steht dann als Text da und
+        # lässt sich nicht anklicken; ein "hier klicken" wäre eine Anweisung
+        # ins Nichts.
         zeilen += [
             "- Auf dieser Plattform sind Links im Text **nicht anklickbar**.",
             "  Schreib den Ziel-Link trotzdem ans Ende, genau so wie er oben",

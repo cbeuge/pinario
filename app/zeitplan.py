@@ -435,6 +435,15 @@ def _einen_posten(eintrag, verbindung, adapter, konto) -> bool:
     ablage = _ablage(verbindung)
     ziel = verbindung.kampagne.target_url
 
+    # **Steht der Link im Profil, gehört er nicht in den Text.** Der Adapter
+    # hängt ihn sonst an, weil sein `link_im_text` das so vorsieht — und
+    # dann stünde die Adresse doch wieder in der Bildunterschrift, obwohl
+    # der Text schon auf die Biografie verweist. Der Kanal erfährt es nicht
+    # über ein neues Merkmal, sondern bekommt schlicht kein Ziel: das ist
+    # derselbe Weg, den eine Kampagne ohne Ziel-Adresse ohnehin nimmt.
+    if (verbindung.settings or {}).get("link_in_bio"):
+        ziel = ""
+
     try:
         antwort = adapter.veroeffentlichen(
             konto.zugang,
