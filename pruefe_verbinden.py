@@ -101,6 +101,10 @@ class Adapter(Kanal):
         self.zustaende = []
         self.codes = []
         self.wirft = None
+        # Was `fehlende_rechte` melden soll, und ob die Abfrage selbst
+        # scheitert. Beides wird von aussen gesetzt.
+        self.fehlt = []
+        self.rechte_wirft = None
         self.antwort = {
             "zugang": "zugang-1",
             "erneuerung": "erneuern-1",
@@ -124,6 +128,11 @@ class Adapter(Kanal):
         if self.wirft:
             raise self.wirft
         return dict(self.antwort)
+
+    def fehlende_rechte(self, zugang):
+        if self.rechte_wirft:
+            raise self.rechte_wirft
+        return list(self.fehlt)
 
     def ablagen(self, zugang):
         from app.kanaele.basis import Ablage
@@ -559,6 +568,71 @@ def _messen(app, adapter, kanal_zeile, nutzer):  # noqa: C901
            konten and konten[0].zugang == "zugang-2")
     pruefe("Neu verbinden zieht den Kontonamen nach",
            konten and konten[0].account_name == "anders")
+
+    # --- Fehlende Rechte fallen beim Verbinden auf ---------------------
+    #
+    # Am 05.09.2026 war Facebook verbunden, zeigte alle vier Seiten und
+    # durfte auf keine posten. Gemerkt hat das erst der Zeitplan, Stunden
+    # spaeter und als gescheiterter Beitrag. Ab hier faellt es sofort auf.
+
+    adapter.fehlt = ["pages_manage_posts"]
+    client.post("/kanaele/pinterest/verbinden", data={"csrf_token": _token(client)})
+    zustand = adapter.zustaende[-1]
+    antwort = client.get(
+        f"/kanaele/pinterest/rueckruf?code=c3&state={zustand}",
+        follow_redirects=True,
+    )
+    pruefe("Fehlende Rechte stehen gleich nach dem Verbinden da",
+           b"pages_manage_posts" in antwort.data)
+    pruefe("Und dazu, dass Nachtragen allein nicht reicht",
+           "neu verbinden".encode() in antwort.data)
+    pruefe("Das Konto wird trotzdem gespeichert",
+           _konto(kanal_zeile.id) is not None)
+
+    antwort = client.post(
+        "/kanaele/pinterest/rechte",
+        data={"csrf_token": _token(client)},
+        follow_redirects=True,
+    )
+    pruefe("Der Knopf meldet dieselben fehlenden Rechte",
+           b"pages_manage_posts" in antwort.data)
+
+    adapter.fehlt = []
+    antwort = client.post(
+        "/kanaele/pinterest/rechte",
+        data={"csrf_token": _token(client)},
+        follow_redirects=True,
+    )
+    pruefe("Sind alle Rechte da, sagt der Knopf das auch",
+           "alle Rechte erteilt".encode() in antwort.data)
+    pruefe("Und meldet dann keine fehlenden",
+           b"pages_manage_posts" not in antwort.data)
+
+    # Scheitert die Abfrage, darf sie weder das Verbinden umwerfen noch
+    # eine Warnung erfinden, die sie nicht belegen kann.
+    adapter.rechte_wirft = KanalFehler("Rechte-Abfrage kaputt")
+    client.post("/kanaele/pinterest/verbinden", data={"csrf_token": _token(client)})
+    zustand = adapter.zustaende[-1]
+    antwort = client.get(
+        f"/kanaele/pinterest/rueckruf?code=c4&state={zustand}",
+        follow_redirects=True,
+    )
+    # Der Statuscode muss mitgeprueft werden. Ohne ihn misst das hier
+    # nichts: bei einem 500er steht das Konto genauso in der Datenbank
+    # (gespeichert wird vorher) und die Warnung fehlt genauso -- beide
+    # Bedingungen waeren also auch dann erfuellt, wenn der Rueckruf
+    # abstuerzt. Genau das ist beim Gegentest herausgekommen.
+    pruefe("Eine kaputte Rechte-Abfrage ergibt trotzdem eine Seite",
+           antwort.status_code == 200)
+    pruefe("Und landet auf den Einstellungen, nicht im Fehler",
+           b"Zugangsdaten" in antwort.data)
+    pruefe("Eine kaputte Rechte-Abfrage laesst das Verbinden stehen",
+           _konto(kanal_zeile.id) is not None)
+    pruefe("Das Verbinden gilt als geglueckt",
+           b"verbunden" in antwort.data)
+    pruefe("Und warnt nicht ins Blaue",
+           "fehlen Rechte".encode() not in antwort.data)
+    adapter.rechte_wirft = None
 
     # --- Boards --------------------------------------------------------
 

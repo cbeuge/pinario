@@ -62,6 +62,23 @@ def _zurueck():
     return redirect(url_for("haupt.einstellungen_seite"))
 
 
+def _rechte_text(fehlt: list[str]) -> str:
+    """Ein Satz, der sagt, was fehlt und wo man es nachträgt.
+
+    Steht an einer Stelle, weil er an zweien gebraucht wird: direkt nach dem
+    Verbinden und auf Knopfdruck. Der Hinweis auf das *neue* Verbinden ist
+    der wichtigste Teil — wer die Rechte bei Meta ergänzt und dann hierher
+    zurückkommt, hat sie damit noch nicht.
+    """
+    return (
+        "Diesem Konto fehlen Rechte, ohne die kein Beitrag rausgeht: "
+        f"{', '.join(fehlt)}. Beim Business-Login stehen die Rechte in der "
+        "Konfiguration bei der Plattform, nicht in der Anfrage von hier. "
+        "Dort ergänzen und danach neu verbinden — ein bestehendes Token "
+        "bekommt sie nicht nachträglich."
+    )
+
+
 @verbinden.route("/<kanal_key>/verbinden", methods=["POST"])
 @login_required
 def starten(kanal_key: str):
@@ -166,6 +183,22 @@ def rueckruf(kanal_key: str):
         + (f" als {konto.account_name}." if konto.account_name else "."),
         "erfolg",
     )
+
+    # **Sofort fragen, ob die Rechte reichen.** Ein Konto kann verbunden
+    # aussehen, die Ablagen anzeigen und trotzdem nichts posten dürfen. Ohne
+    # diese Frage fällt das erst am ersten fälligen Beitrag auf, also
+    # womöglich Tage später und als gescheiterter Versuch in der Messreihe.
+    try:
+        fehlt = kanal(kanal_key).fehlende_rechte(konto.zugang)
+    except Exception:  # noqa: BLE001
+        current_app.logger.exception("Rechte von %s nicht geprüft", kanal_key)
+        fehlt = []
+
+    if fehlt:
+        current_app.logger.warning(
+            "Konto %s fehlen Rechte: %s", kanal_key, ", ".join(fehlt)
+        )
+        flash(_rechte_text(fehlt), "fehler")
     return _zurueck()
 
 
@@ -188,6 +221,46 @@ def trennen(kanal_key: str):
         "warten, bis wieder ein Konto verbunden ist.",
         "erfolg",
     )
+    return _zurueck()
+
+
+@verbinden.route("/<kanal_key>/rechte", methods=["POST"])
+@login_required
+def rechte(kanal_key: str):
+    """Fragt die Plattform, ob die Rechte des Kontos zum Posten reichen.
+
+    Dasselbe wie direkt nach dem Verbinden, nur auf Knopfdruck. Es steht
+    hier als eigener Knopf und nicht in der Seite selbst, weil es einen
+    Aufruf zur Plattform kostet: bei jedem Aufruf der Einstellungen zu
+    fragen, hieße die Seite von einem fremden Dienst abhängig zu machen,
+    den man dort gar nicht braucht.
+
+    Gebraucht wird der Knopf, wenn bei der Plattform etwas nachgetragen
+    wurde. Ein bestehendes Token bekommt neue Rechte **nicht** nachträglich,
+    und diese Prüfung ist der Weg, das zu sehen, statt es am nächsten
+    fälligen Beitrag zu merken.
+    """
+    zeile = _kanal_zeile(kanal_key)
+    konto = _konto(zeile.id)
+    if konto is None:
+        flash(f"Für {zeile.name} ist kein Konto verbunden.", "fehler")
+        return _zurueck()
+
+    try:
+        fehlt = kanal(kanal_key).fehlende_rechte(konto.zugang)
+    except Exception as fehler:  # noqa: BLE001
+        current_app.logger.exception("Rechte von %s nicht geprüft", kanal_key)
+        flash(f"Die Rechte ließen sich nicht abfragen: {fehler}", "fehler")
+        return _zurueck()
+
+    if fehlt:
+        flash(_rechte_text(fehlt), "fehler")
+    else:
+        flash(
+            f"{zeile.name}: alle Rechte erteilt, die zum Posten gebraucht "
+            "werden.",
+            "erfolg",
+        )
     return _zurueck()
 
 

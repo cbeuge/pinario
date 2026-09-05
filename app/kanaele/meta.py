@@ -377,6 +377,29 @@ class MetaKanal(Kanal):
             parameter["after"] = nach
         return gefunden
 
+    def fehlende_rechte(self, zugang: str) -> list[str]:
+        """Fragt Meta, welche der nötigen Rechte wirklich erteilt sind.
+
+        `/me/permissions` ist die einzige verlässliche Quelle dafür. Was der
+        Kanal beim Anmelden **anfragt**, sagt nichts darüber, was er bekommen
+        hat — beim Business-Login schon gar nicht, denn dort stehen die
+        Rechte in einer Konfiguration bei Meta und die Anfrage von hier wird
+        ignoriert.
+        """
+        try:
+            daten = _hole("/me/permissions", zugang)
+        except KanalFehler:
+            # Nicht durchreichen: das Verbinden hat geklappt, und eine
+            # Warnung, die selbst gescheitert ist, hilft niemandem.
+            return []
+
+        erteilt = {
+            eintrag.get("permission")
+            for eintrag in (daten.get("data") or [])
+            if isinstance(eintrag, dict) and eintrag.get("status") == "granted"
+        }
+        return [recht for recht in self.bereiche if recht not in erteilt]
+
     def _seiten_token(self, zugang: str, seiten_id: str) -> str:
         """Das Token *dieser* Seite. Ohne das geht kein Beitrag raus.
 

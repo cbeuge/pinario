@@ -79,6 +79,10 @@
         {% if zeile.ablagen_moeglich %}
           <a class="textknopf" href="{{ url_for('verbinden.ablagen', kanal_key=zeile.kanal.key) }}">{{ zeile.ablage_mehrzahl }} ansehen</a>
         {% endif %}
+        <form method="post" action="{{ url_for('verbinden.rechte', kanal_key=zeile.kanal.key) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="textknopf">Rechte prüfen</button>
+        </form>
         <form method="post" action="{{ url_for('verbinden.starten', kanal_key=zeile.kanal.key) }}">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <button type="submit" class="textknopf">Neu verbinden</button>

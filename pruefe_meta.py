@@ -316,6 +316,60 @@ def main() -> int:  # noqa: C901
         pruefe("Antwort ohne data ergibt eine leere Liste",
                facebook.ablagen(NUTZER_TOKEN) == [])
 
+        # --- Welche Rechte wirklich erteilt sind -----------------------
+        #
+        # Am 05.09.2026 sah Facebook verbunden aus, zeigte vier Seiten und
+        # konnte auf keine posten: `pages_show_list` war erteilt, die beiden
+        # Schreib-Rechte nicht. Aufgefallen ist es erst am ersten faelligen
+        # Beitrag. Was hier geprueft wird, ist genau dieser Fall.
+
+        netz.antworten.clear()
+        netz.aufrufe.clear()
+        netz.stelle("/me/permissions", Antwort(daten={"data": [
+            {"permission": "pages_show_list", "status": "granted"},
+            {"permission": "business_management", "status": "granted"},
+            {"permission": "pages_manage_posts", "status": "declined"},
+        ]}))
+        fehlt = facebook.fehlende_rechte(NUTZER_TOKEN)
+        pruefe("Ein abgelehntes Recht faellt auf",
+               "pages_manage_posts" in fehlt)
+        pruefe("Ein gar nicht genanntes Recht faellt auch auf",
+               "pages_read_engagement" in fehlt)
+        pruefe("Erteilte Rechte stehen nicht in der Liste",
+               "pages_show_list" not in fehlt)
+        pruefe("Gefragt wird das Konto, nicht die eigene Anfrage",
+               _letzter(netz, "/me/permissions")["art"] == "get")
+
+        netz.stelle("/me/permissions", Antwort(daten={"data": [
+            {"permission": recht, "status": "granted"}
+            for recht in facebook.bereiche
+        ]}))
+        pruefe("Sind alle da, meldet die Pruefung nichts",
+               facebook.fehlende_rechte(NUTZER_TOKEN) == [])
+
+        # Instagram braucht andere Rechte als Facebook. Wuerde die Pruefung
+        # eine feste Liste nehmen statt der des Kanals, faende sie hier
+        # entweder nichts oder das Falsche.
+        netz.stelle("/me/permissions", Antwort(daten={"data": [
+            {"permission": "pages_show_list", "status": "granted"},
+        ]}))
+        pruefe("Instagram misst an seinen eigenen Rechten",
+               "instagram_content_publish"
+               in instagram.fehlende_rechte(NUTZER_TOKEN))
+
+        # Scheitert die Abfrage selbst, ist das kein Grund, ein gegluecktes
+        # Verbinden mit einer Warnung zu belasten, die nichts belegt.
+        netz.stelle("/me/permissions", Antwort(status=400, daten={
+            "error": {"message": "Unsupported get request", "code": 100},
+        }))
+        pruefe("Eine gescheiterte Abfrage meldet nichts statt zu raten",
+               facebook.fehlende_rechte(NUTZER_TOKEN) == [])
+
+        netz.wirft = Netz.RequestException("kein Netz")
+        pruefe("Und ein Netzfehler wirft hier nicht durch",
+               facebook.fehlende_rechte(NUTZER_TOKEN) == [])
+        netz.wirft = None
+
         # --- Facebook posten ------------------------------------------
 
         netz.antworten.clear()

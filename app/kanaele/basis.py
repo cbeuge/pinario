@@ -187,5 +187,22 @@ class Kanal:
         """
         raise NotImplementedError
 
+    def fehlende_rechte(self, zugang: str) -> list[str]:
+        """Welche Rechte dem verbundenen Konto fehlen, um zu posten.
+
+        **Wird direkt nach dem Verbinden gefragt.** Ein Konto kann verbunden
+        aussehen, die Seiten anzeigen und trotzdem nichts posten dürfen —
+        genau das ist am 05.09.2026 passiert: `pages_show_list` war da,
+        `pages_manage_posts` nicht. Aufgefallen ist es erst am ersten
+        fälligen Beitrag, also Stunden später und als gescheiterter Versuch
+        in der Messreihe.
+
+        Eine leere Liste heißt "alles da" **oder** "der Kanal kann es nicht
+        sagen". Das ist Absicht: ein Adapter, der die Rechte nicht abfragen
+        kann, soll das Verbinden nicht mit einer Warnung belasten, die er
+        gar nicht belegen kann.
+        """
+        return []
+
     def zahlen(self, zugang: str, plattform_id: str) -> Zahlen:
         raise NotImplementedError
