@@ -2,6 +2,13 @@
 
     venv\\Scripts\\python.exe pruefe_verbinden.py
 
+**Dieses Skript darf nur gegen eine Datenbank laufen, in der niemand
+arbeitet.** Es legt Kampagnen an, verbindet und trennt Konten, laedt Dateien
+hoch und raeumt hinterher auf. Am 05.09.2026 ist es auf dem Server gelaufen
+und hat dabei vier echte Kampagnen mitgenommen, unwiederbringlich, weil
+pinario keine Sicherung hat. Seitdem bricht `_nur_lokal` vorher ab: bei
+gesetztem PRODUKTION in der Umgebung und wenn fremde Kampagnen dastehen.
+
 Anders als die uebrigen Pruefskripte **braucht dieses die lokale
 Datenbank**: gemessen wird genau das, was zwischen Browser, Sitzung und
 Tabelle passiert, und das laesst sich nicht trocken nachbauen. Angefasst
@@ -187,6 +194,8 @@ def main() -> int:  # noqa: C901
     BEKANNT["pinterest"] = adapter
 
     with app.app_context():
+        _nur_lokal()
+
         kanal_zeile = db.session.scalar(
             select(Channel).where(Channel.key == "pinterest")
         )
@@ -252,6 +261,53 @@ def main() -> int:  # noqa: C901
         return 1
     print(f"Alle {len(ergebnisse)} Prüfungen bestanden.")
     return 0
+
+
+def _nur_lokal() -> None:
+    """Bricht ab, wenn das hier gegen eine Produktivdatenbank liefe.
+
+    **Am 05.09.2026 ist genau das passiert.** Dieses Skript legt Kampagnen
+    an, verbindet und trennt Konten, laedt Dateien hoch und raeumt hinterher
+    auf. Auf dem Server ausgefuehrt hat es Carstens vier Kampagnen
+    mitgenommen -- unwiederbringlich, weil pinario keine Sicherung hat.
+
+    Zwei Gurte, weil einer nicht reicht:
+
+    **1. `PRODUKTION` aus der Umgebung.** Nicht aus der Konfiguration: die
+    `TestConfig` dieses Skripts setzt sie auf False, und damit waere die
+    Pruefung genau dort blind, wo sie greifen muss. Der Wert kommt aus der
+    `.env` und steht auf dem Server auf 1.
+
+    **2. Fremde Kampagnen in der Datenbank.** Alles, was dieses Skript
+    anlegt, heisst "Prüfung ...". Steht etwas anderes darin, ist es eine
+    Datenbank, in der jemand arbeitet, und dann wird hier nichts angefasst.
+    Das schuetzt auch lokal, wo `PRODUKTION` leer ist.
+    """
+    import os
+
+    from app.models import Campaign
+
+    if os.environ.get("PRODUKTION", "").strip().lower() in {
+        "1", "true", "ja", "yes", "on"
+    }:
+        raise SystemExit(
+            "Abbruch: PRODUKTION ist gesetzt. Dieses Skript legt Daten an "
+            "und loescht sie wieder; gegen eine Produktivdatenbank darf es "
+            "nie laufen. Es gehoert auf den Entwicklungsrechner."
+        )
+
+    fremde = [
+        k.name
+        for k in db.session.scalars(select(Campaign))
+        if not k.name.startswith("Prüfung ")
+    ]
+    if fremde:
+        raise SystemExit(
+            "Abbruch: in dieser Datenbank stehen Kampagnen, die nicht von "
+            "diesem Skript sind: " + ", ".join(fremde[:5]) + ". "
+            "Das Skript legt Daten an und loescht sie wieder; es laeuft nur "
+            "gegen eine Datenbank, in der niemand arbeitet."
+        )
 
 
 def _aufraeumen(app, kanal_zeile) -> None:
