@@ -54,7 +54,7 @@ import sys
 from datetime import timedelta
 
 from flask import g
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 
 from app import create_app
 from app.config import Config
@@ -62,7 +62,7 @@ from app.extensions import db
 from app.kanaele import BEKANNT, KanalFehler, anmelde_urspruenge
 from app.kanaele.basis import Kanal
 from app.models import Account, Campaign, CampaignChannel, Channel, ContentItem, User
-from app.zeit import jetzt
+from app.zeit import jetzt, nach_berlin
 
 ADRESSE = "https://pinario.example"
 
@@ -1105,6 +1105,89 @@ def _messen(app, adapter, kanal_zeile, nutzer):  # noqa: C901
     pruefe("Threads auch nicht", "Threads" not in ohne)
 
     db.session.delete(wartende)
+    db.session.commit()
+
+    # --- Eine gescheiterte Variante noch einmal ansetzen ---------------
+    #
+    # Am 05.09.2026 gescheitert, weil bei Meta zwei Rechte fehlten. Nach dem
+    # Nachtragen war die Variante trotzdem nicht mehr einzuplanen: sie stand
+    # auf `failed` und behielt ihren Termin in der Vergangenheit.
+    # `einplanen` fasst nur an, was **keinen** Termin hat, `posten` nimmt nur
+    # `ready` -- sie waere fuer immer liegengeblieben.
+
+    from app.models import PostedItem as PI
+
+    zweite.status = "active"
+    db.session.commit()
+    kaputt = CI(
+        campaign_channel_id=neue_verbindung.id, variant_group="kaputt",
+        type="image", quelle="upload", title="Ging schief",
+        description="x", file_path="hochgeladen/x.jpg", status="failed",
+        geplant_fuer=jetzt() - timedelta(hours=2),
+    )
+    db.session.add(kaputt)
+    db.session.commit()
+    db.session.add(PI(
+        content_item_id=kaputt.id,
+        campaign_channel_id=neue_verbindung.id,
+        status="failed",
+        fehler="Meta: (#200) The permission(s) pages_manage_posts are not available.",
+    ))
+    db.session.commit()
+
+    seite = client.get(f"/kanal/{neue_verbindung.id}/varianten").data.decode()
+    pruefe("Der Grund steht an der gescheiterten Variante",
+           "pages_manage_posts" in seite)
+    pruefe("Und ein Knopf, der es noch einmal versucht",
+           'value="nochmal"' in seite)
+
+    alter_termin = kaputt.geplant_fuer
+    antwort = client.post(
+        f"/kanal/{neue_verbindung.id}/varianten/{kaputt.id}",
+        data={"csrf_token": _token(client), "aktion": "nochmal"},
+        follow_redirects=True,
+    )
+    db.session.refresh(kaputt)
+    pruefe("Erneut versuchen setzt sie zurueck auf freigegeben",
+           kaputt.status == "ready")
+    pruefe("Und vergibt gleich einen neuen Termin",
+           kaputt.geplant_fuer is not None)
+    pruefe("Der neue Termin liegt in der Zukunft",
+           kaputt.geplant_fuer is not None
+           and nach_berlin(kaputt.geplant_fuer) > jetzt())
+    pruefe("Nicht der alte aus der Vergangenheit",
+           kaputt.geplant_fuer != alter_termin)
+    pruefe("Die Meldung nennt den neuen Termin",
+           "neu angesetzt".encode() in antwort.data)
+
+    # Der Fehlversuch bleibt stehen. Er ist passiert, und die Auswertung
+    # soll ihn zaehlen -- ein Kanal, an dem jeder zweite Beitrag scheitert,
+    # sieht sonst so gut aus wie einer, an dem alles klappt.
+    pruefe("Der alte Fehlversuch bleibt in der Auswertung stehen",
+           db.session.scalar(
+               select(func.count(PI.id)).where(PI.content_item_id == kaputt.id)
+           ) == 1)
+
+    # Nur der gescheiterte Fall. Sonst waere das ein zweiter Weg, eine
+    # laufende oder schon geposteten Variante umzubiegen.
+    for zustand in ("ready", "draft", "posted"):
+        kaputt.status = zustand
+        db.session.commit()
+        antwort = client.post(
+            f"/kanal/{neue_verbindung.id}/varianten/{kaputt.id}",
+            data={"csrf_token": _token(client), "aktion": "nochmal"},
+            follow_redirects=True,
+        )
+        db.session.refresh(kaputt)
+        pruefe(f"Aus '{zustand}' laesst sich nichts neu ansetzen",
+               kaputt.status == zustand)
+
+    db.session.execute(
+        delete(PI).where(PI.content_item_id == kaputt.id)
+    )
+    db.session.delete(kaputt)
+    db.session.commit()
+    zweite.status = "draft"
     db.session.commit()
 
     # --- Status von der Uebersicht aus --------------------------------

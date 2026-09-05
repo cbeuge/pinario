@@ -551,6 +551,21 @@ def _gruppen(verbindung: CampaignChannel, adapter) -> list[dict]:
         ).all()
     )
 
+    # Der letzte Fehlschlag je Variante, für die gescheiterten. Eine
+    # Abfrage für alle, wie oben bei `gepostet`.
+    gruende = {
+        zeile.content_item_id: zeile.fehler
+        for zeile in db.session.scalars(
+            select(PostedItem)
+            .where(
+                PostedItem.campaign_channel_id == verbindung.id,
+                PostedItem.status == "failed",
+            )
+            .order_by(PostedItem.id)
+        )
+        if zeile.fehler
+    }
+
     reihenfolge: list[str] = []
     gebuendelt: dict[str, list] = {}
     for inhalt in inhalte:
@@ -561,6 +576,10 @@ def _gruppen(verbindung: CampaignChannel, adapter) -> list[dict]:
         gebuendelt[schluessel].append({
             "inhalt": inhalt,
             "loeschbar": inhalt.id not in gepostet,
+            # Warum sie gescheitert ist, gehört neben den Knopf, der es
+            # noch einmal versucht. Sonst muss man dafür auf den Zeitplan
+            # wechseln und die Zeile dort suchen.
+            "grund": gruende.get(inhalt.id, ""),
             # Ein Pin braucht ein Bild. Eine Variante ohne wird gar nicht
             # erst eingeplant — und das muss man sehen, bevor man sie
             # freigibt und sich wundert, dass nie etwas passiert.
@@ -960,6 +979,46 @@ def variante_aendern(verbindung_id: int, inhalt_id: int):
         inhalt.status = "draft"
         db.session.commit()
         flash("Variante zurückgezogen.", "erfolg")
+        return redirect(ziel)
+
+    if aktion == "nochmal":
+        # **Ohne das ist eine gescheiterte Variante eine Sackgasse.** Sie
+        # behält ihren Termin in der Vergangenheit und steht auf `failed`;
+        # `einplanen()` fasst nur an, was freigegeben ist und *keinen*
+        # Termin hat, und `posten()` nimmt nur `ready`. Sie bliebe also
+        # liegen, auch wenn der Grund längst behoben ist -- am 05.09.2026
+        # fehlende Rechte bei Meta, nachgetragen und neu verbunden.
+        #
+        # Der alte Versuch bleibt als `posted_items`-Zeile stehen. Er ist
+        # passiert, und die Auswertung soll ihn zählen.
+        if inhalt.status != "failed":
+            flash("Nur eine gescheiterte Variante lässt sich neu ansetzen.", "fehler")
+            return redirect(ziel)
+
+        inhalt.status = "ready"
+        inhalt.geplant_fuer = None
+        inhalt.posten_seit = None
+        db.session.commit()
+
+        from .zeitplan import einplanen
+
+        einplanen()
+        db.session.refresh(inhalt)
+        if inhalt.geplant_fuer:
+            flash(
+                "Variante neu angesetzt: "
+                f"{inhalt.geplant_fuer:%d.%m.%Y um %H:%M} Uhr.",
+                "erfolg",
+            )
+        else:
+            # Kein Termin heißt fast immer: die Kampagne steht nicht auf
+            # active, oder im Zeitfenster ist bis zum Ende der Vorausschau
+            # kein Platz frei.
+            flash(
+                "Variante neu angesetzt. Einen Termin hat sie noch nicht — "
+                "siehe Zeitplan.",
+                "erfolg",
+            )
         return redirect(ziel)
 
     try:

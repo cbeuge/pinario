@@ -490,3 +490,23 @@ code {
   font: inherit;
   font-size: .85rem;
 }
+
+/* Warum eine Variante gescheitert ist, direkt an ihr. Nicht `.grund`:
+   `--grund` ist die Hintergrundfarbe, und zwei Dinge mit demselben Namen
+   sind eine Falle fuer den Naechsten. Umbrechend, weil die Meldungen der
+   Plattformen lang sind und die Karte sonst auseinanderziehen. */
+.variante .fehlergrund {
+  display: block;
+  width: 100%;
+  margin-top: .4rem;
+  padding: 0;
+  background: none;
+  font-size: .78rem;
+  line-height: 1.4;
+  color: var(--rot);
+  overflow-wrap: anywhere;
+}
+
+/* Der Knopf steht unter der Meldung, nicht daneben: die Meldung ist lang,
+   und ein Knopf am Ende einer langen Zeile wird uebersehen. */
+.fehlerzeile form { margin-top: .3rem; }

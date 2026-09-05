@@ -138,7 +138,18 @@
         </tr>
         {% if eintrag.fehler %}
           <tr class="fehlerzeile">
-            <td colspan="6"><code>{{ eintrag.fehler }}</code></td>
+            <td colspan="6">
+              <code>{{ eintrag.fehler }}</code>
+              {% if eintrag.inhalt.status == 'failed' %}
+                <form method="post"
+                      action="{{ url_for('haupt.variante_aendern',
+                                         verbindung_id=eintrag.campaign_channel_id,
+                                         inhalt_id=eintrag.content_item_id) }}">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <button type="submit" name="aktion" value="nochmal" class="textknopf">Erneut versuchen</button>
+                </form>
+              {% endif %}
+            </td>
           </tr>
         {% endif %}
       {% endfor %}
