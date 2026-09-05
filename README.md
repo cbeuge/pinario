@@ -939,6 +939,25 @@ Die Regel steht deshalb an beiden Stellen, im Formular und im Zeitplan, und
 `pruefe_zeitplan.py` misst beide Wege — `postet_am` allein nützt nichts,
 wenn `slots` die Antwort nicht beachtet.
 
+### Ändert sich der Takt, werden die Termine neu vergeben
+
+`einplanen` fasst absichtlich nur an, was noch **keinen** Termin hat — sonst
+würde jeder Lauf alle fünf Minuten alles umsortieren. Für schon vergebene
+Termine hieß das aber: wer das Zeitfenster verschiebt, ändert nichts, und
+der Beitrag geht weiter zur alten Zeit raus.
+
+Beim Speichern der Kanal-Einstellungen werden sie deshalb freigegeben und
+sofort neu vergeben, wenn sich `posts_per_day`, `time_window` oder
+`weekdays` geändert haben. Wer bloß eine Seite dazuwählt, behält seine
+Termine. Was auf `posting` steht, bleibt unangetastet: dieser Eintrag ist
+gerade unterwegs zur Plattform, und ihm den Termin wegzunehmen hieße, ihn
+ein zweites Mal einzuplanen.
+
+`einplanen` läuft dabei **immer** nach dem Speichern, nicht nur bei
+geändertem Takt: es fasst nur Terminloses an, ist also billig, und wer
+gerade gespeichert hat, will das Ergebnis sehen statt bis zum nächsten
+Timer-Lauf zu warten.
+
 ### Wie die Termine liegen
 
 Gleichmäßig vom Beginn des Fensters aus, nicht über das ganze Fenster
