@@ -31,6 +31,7 @@ from app.config import Config
 from app.kanaele import KanalFehler
 from app.kanaele import meta as modul
 from app.kanaele.meta import Facebook, Instagram
+from app.kanaele.pinterest import Pinterest
 
 ADRESSE = "https://pinario.example"
 NUTZER_TOKEN = "nutzer-token"
@@ -165,8 +166,16 @@ def main() -> int:  # noqa: C901
         pruefe("Und die Untergrenze liegt unter der Obergrenze",
                instagram.min_beschreibung < instagram.max_beschreibung)
         pruefe("Instagram will Absaetze", instagram.absaetze)
-        pruefe("Facebook bleibt dabei unveraendert",
-               facebook.min_beschreibung == 0 and not facebook.absaetze)
+        pruefe("Facebook will ebenfalls laengere Texte",
+               facebook.min_beschreibung >= 400)
+        pruefe("Aber weniger als Instagram: dort wird bewusst gelesen",
+               facebook.min_beschreibung < instagram.min_beschreibung)
+        pruefe("Auch Facebook will Absaetze", facebook.absaetze)
+        pruefe("Beide Untergrenzen liegen unter ihrer Obergrenze",
+               facebook.min_beschreibung < facebook.max_beschreibung
+               and instagram.min_beschreibung < instagram.max_beschreibung)
+        pruefe("Pinterest bleibt unveraendert: dort zaehlt der Pin, nicht der Text",
+               Pinterest().min_beschreibung == 0 and not Pinterest().absaetze)
         pruefe("Instagram nennt seine Ablagen Konten",
                instagram.ablage_mehrzahl == "Konten")
 

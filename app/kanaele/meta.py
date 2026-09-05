@@ -450,6 +450,14 @@ class Facebook(MetaKanal):
             # Anstands: einen Beitrag, den niemand zu Ende liest, muss man
             # nicht erzeugen lassen.
             max_beschreibung=2000,
+            # Wie bei Instagram, nur niedriger. Facebook klappt einen
+            # Beitrag ab etwa vier Zeilen mit "Mehr anzeigen" weg; darunter
+            # ist der Text vorbei, bevor jemand hängenbleibt. 400 sind der
+            # Punkt, ab dem etwas hinter dem Klappen steht, ohne dass der
+            # Beitrag zum Aufsatz wird -- Facebook wird nebenbei gelesen,
+            # Instagram bewusst, deshalb hier weniger als die 500 dort.
+            min_beschreibung=400,
+            absaetze=True,
             link_im_text=True,
             link_klickbar=True,
             # Facebook zeigt Beitragsbilder quer.
