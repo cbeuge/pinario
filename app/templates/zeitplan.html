@@ -21,6 +21,58 @@
   </p>
 {% endif %}
 
+{# **Der wichtigste Kasten dieser Seite.** Wer eine Variante freigibt, liest
+   "der Zeitplan nimmt sie mit" und sucht sie dann hier. Ohne diesen
+   Abschnitt steht sie nirgends, und man sucht den Fehler im Zeitplan statt
+   beim Status der Kampagne. #}
+{% if wartet %}
+  <h2>Freigegeben, wartet auf einen Termin</h2>
+  <div class="tabellenrahmen">
+  <table class="liste">
+    <thead>
+      <tr>
+        <th>Kampagne</th>
+        <th>Kanal</th>
+        <th>Titel</th>
+        <th>Woran es liegt</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for eintrag in wartet %}
+        {% set kampagne = eintrag.kampagnenkanal.kampagne %}
+        <tr>
+          <td>
+            <a href="{{ url_for('haupt.kampagne', kampagne_id=kampagne.id) }}">
+              {{ kampagne.name }}
+            </a>
+          </td>
+          <td>{{ eintrag.kampagnenkanal.kanal.name }}</td>
+          <td>
+            <a href="{{ url_for('haupt.varianten', verbindung_id=eintrag.campaign_channel_id) }}">
+              {{ eintrag.title or 'ohne Titel' }}
+            </a>
+          </td>
+          <td>
+            {% if kampagne.status != 'active' %}
+              <span class="marker warnung">Kampagne steht auf {{ kampagne.status }}</span>
+            {% elif not eintrag.file_path %}
+              <span class="marker warnung">Bild fehlt</span>
+            {% else %}
+              <span class="leise">kommt beim nächsten Lauf dran</span>
+            {% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <p class="feldhilfe leise">
+    Termine vergibt der Zeitplan nur für Kampagnen auf <code>active</code>.
+    Der Timer läuft alle fünf Minuten; nach dem Umstellen dauert es also
+    höchstens so lange, bis hier ein Termin steht.
+  </p>
+{% endif %}
+
 <h2>Steht an</h2>
 
 {% if not ansteht %}

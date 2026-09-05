@@ -567,10 +567,25 @@ def _messen(app, adapter, kanal_zeile, nutzer):  # noqa: C901
     pruefe("Die Kennung steht zum Abschreiben da", b">7<" in antwort.data)
 
     # --- Zeitplan sieht das Konto -------------------------------------
+    #
+    # Der Zeitplan meldet nur Kanaele, die eine Kampagne auch benutzt. Fuer
+    # diesen Abschnitt braucht es also eine -- ohne sie misst man, dass die
+    # Meldung schweigt, und haelt das faelschlich fuer den Erfolg.
+    zeitplan_kampagne = Campaign(
+        name="Prüfung Zeitplan", target_url="https://example.de", status="draft"
+    )
+    db.session.add(zeitplan_kampagne)
+    db.session.commit()
+    zeitplan_verbindung = CampaignChannel(
+        campaign_id=zeitplan_kampagne.id, channel_id=kanal_zeile.id,
+        content_source="ai_generated", settings={},
+    )
+    db.session.add(zeitplan_verbindung)
+    db.session.commit()
 
-    # Nicht auf den ganzen Satz pruefen: seit Instagram und Facebook aktiv
-    # sind, steht er dort weiter, nur ohne Pinterest. Ein Test, der das
-    # nicht trennt, misst die Zahl der Kanaele statt das Verhalten.
+    # Nicht auf den ganzen Satz pruefen: es sind mehrere Kanaele aktiv, und
+    # ein Test, der das nicht trennt, misst die Zahl der Kanaele statt das
+    # Verhalten.
     seite = client.get("/zeitplan").data.decode()
     pruefe("Zeitplan zaehlt Pinterest nicht mehr als unverbunden",
            "Pinterest" not in _ohne_konto(seite))
@@ -595,6 +610,10 @@ def _messen(app, adapter, kanal_zeile, nutzer):  # noqa: C901
     seite = client.get("/zeitplan").data.decode()
     pruefe("Zeitplan meldet den Kanal wieder als nicht verbunden",
            "Pinterest" in _ohne_konto(seite))
+
+    db.session.delete(zeitplan_verbindung)
+    db.session.delete(zeitplan_kampagne)
+    db.session.commit()
 
     # --- Die Ablagen an der Kampagne ----------------------------------
     #
@@ -911,6 +930,48 @@ def _messen(app, adapter, kanal_zeile, nutzer):  # noqa: C901
     )
     pruefe("Beim blossen Aendern bleibt man auf der Kampagne",
            "/varianten" not in antwort.headers.get("Location", ""))
+
+    # --- Der Zeitplan sagt, warum nichts ansteht ----------------------
+    #
+    # Am 05.09.2026 gemeldet: eine freigegebene Variante war im Zeitplan
+    # nirgends zu sehen, und daneben stand "Kein Konto verbunden", obwohl
+    # Facebook verbunden war. Beides Anzeigefehler, beide fuehren genau in
+    # die falsche Richtung.
+
+    from app.models import ContentItem as CI
+
+    wartende = CI(
+        campaign_channel_id=neue_verbindung.id, variant_group="wartet",
+        type="image", quelle="upload", title="Wartet auf active",
+        description="x", file_path="hochgeladen/x.jpg", status="ready",
+    )
+    db.session.add(wartende)
+    db.session.commit()
+
+    seite = client.get("/zeitplan").data.decode()
+    pruefe("Eine freigegebene Variante ohne Termin steht auf dem Zeitplan",
+           "Wartet auf active" in seite)
+    pruefe("Und dazu, woran es liegt",
+           "Kampagne steht auf draft" in seite)
+
+    zweite.status = "active"
+    db.session.commit()
+    seite = client.get("/zeitplan").data.decode()
+    pruefe("Bei aktiver Kampagne steht dort der naechste Lauf",
+           "naechsten Lauf".replace("ae", "ä") in seite)
+    zweite.status = "draft"
+    db.session.commit()
+
+    # Der zweite Teil: gemeldet wird nur, was auch gebraucht wird.
+    ohne = _ohne_konto(client.get("/zeitplan").data.decode())
+    pruefe("Pinterest steht dort, weil die Kampagne ihn benutzt",
+           "Pinterest" in ohne)
+    pruefe("Instagram nicht, den benutzt keine Kampagne",
+           "Instagram" not in ohne)
+    pruefe("Threads auch nicht", "Threads" not in ohne)
+
+    db.session.delete(wartende)
+    db.session.commit()
 
     # --- Status von der Uebersicht aus --------------------------------
 

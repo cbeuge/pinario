@@ -856,6 +856,23 @@ venv\Scripts\python.exe pruefe_threads.py    61 Fälle
 
 ## Zeitplan
 
+**Die Seite sagt, warum nichts ansteht.** Drei Kästen, und der erste ist der
+wichtigste:
+
+* **Freigegeben, wartet auf einen Termin.** Wer eine Variante freigibt,
+  liest „der Zeitplan nimmt sie mit" und sucht sie dann unter „Steht an".
+  Dort steht sie nicht, solange die Kampagne auf `draft` steht — `einplanen`
+  vergibt nur für aktive Kampagnen Termine. Ohne diesen Kasten sucht man den
+  Fehler im Zeitplan statt beim Status der Kampagne. An jeder Zeile steht,
+  woran es liegt.
+* **Kein Konto verbunden** und **Zugang abgelaufen**, aber **nur für Kanäle,
+  die eine Kampagne auch benutzt.** Vorher standen dort alle
+  freigeschalteten; wer „Kein Konto verbunden" liest, während sein eigener
+  Kanal längst verbunden ist, sucht am falschen Ort.
+
+Auch die Meldung beim Freigeben verspricht nicht mehr, als der nächste
+Schritt hält: steht die Kampagne nicht auf `active`, sagt sie das.
+
 Zwei Schritte, absichtlich getrennt. **Einplanen** vergibt `geplant_fuer` an
 freigegebene Varianten und rechnet dabei nur mit Zeiten und der Datenbank.
 **Posten** nimmt fällige Einträge und schickt sie über den Adapter raus;

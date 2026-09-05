@@ -892,7 +892,19 @@ def variante_aendern(verbindung_id: int, inhalt_id: int):
     if aktion == "freigeben":
         inhalt.status = "ready"
         db.session.commit()
-        flash("Variante freigegeben. Der Zeitplan nimmt sie mit.", "erfolg")
+        # **Nicht mehr versprechen, als der nächste Schritt hält.** Termine
+        # vergibt der Zeitplan nur für Kampagnen auf `active`; steht die
+        # Kampagne auf `draft`, passiert nach dem Freigeben gar nichts, und
+        # "der Zeitplan nimmt sie mit" schickt einen auf die Suche.
+        if verbindung.kampagne.status == "active":
+            flash("Variante freigegeben. Der Zeitplan nimmt sie mit.", "erfolg")
+        else:
+            flash(
+                "Variante freigegeben. Sie bekommt einen Termin, sobald die "
+                f"Kampagne auf active steht — sie steht auf "
+                f"{verbindung.kampagne.status}.",
+                "erfolg",
+            )
         return redirect(ziel)
 
     if aktion == "zurueckziehen":
@@ -939,6 +951,21 @@ def zeitplan_seite():
         .limit(50)
     ).all()
 
+    # **Freigegeben, aber ohne Termin.** Das ist der Zustand, in dem man
+    # ratlos vor einer leeren Seite steht: die Variante ist freigegeben, die
+    # Meldung sagte "der Zeitplan nimmt sie mit", und trotzdem steht sie
+    # nirgends. Der Grund ist fast immer, dass die Kampagne auf `draft`
+    # steht — dann vergibt `einplanen()` gar keine Termine.
+    wartet = db.session.scalars(
+        select(ContentItem)
+        .where(
+            ContentItem.geplant_fuer.is_(None),
+            ContentItem.status == "ready",
+        )
+        .order_by(ContentItem.id)
+        .limit(50)
+    ).all()
+
     zuletzt = db.session.scalars(
         select(PostedItem).order_by(PostedItem.posted_at.desc()).limit(30)
     ).all()
@@ -947,10 +974,20 @@ def zeitplan_seite():
     # die Seite, sonst sucht man ihn im Code. Zwei Fälle, die verschiedene
     # Schritte verlangen: gar nicht verbunden, oder verbunden und der Zugang
     # ist abgelaufen.
+    #
+    # **Gemeldet wird nur, was auch gebraucht wird.** Vorher standen dort
+    # alle freigeschalteten Kanäle, also auch drei, die in keiner Kampagne
+    # eingeschaltet sind. Wer dann "Kein Konto verbunden" liest, während sein
+    # eigener Kanal längst verbunden ist, sucht den Fehler am falschen Ort.
+    gebraucht = {
+        verbindung.channel_id
+        for verbindung in db.session.scalars(select(CampaignChannel))
+    }
+
     ohne_konto = []
     abgelaufen = []
     for eintrag in db.session.scalars(select(Channel).order_by(Channel.id)):
-        if eintrag.key not in AKTIV:
+        if eintrag.key not in AKTIV or eintrag.id not in gebraucht:
             continue
         konto = db.session.scalars(
             select(Account)
@@ -965,6 +1002,7 @@ def zeitplan_seite():
     return render_template(
         "zeitplan.html",
         ansteht=ansteht,
+        wartet=wartet,
         zuletzt=zuletzt,
         ohne_konto=ohne_konto,
         abgelaufen=abgelaufen,
