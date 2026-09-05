@@ -12,7 +12,13 @@
          value="{{ werte.get('name', '') }}" placeholder="welcometap" autofocus>
 
   <label for="target_url">Ziel-Link</label>
-  <input type="url" id="target_url" name="target_url" maxlength="2000" required
+  {# **type="text" und nicht "url".** Der Browser prueft ein url-Feld
+     selbst und lehnt "chaosbeenden.de" ab, bevor die Anfrage ueberhaupt
+     abgeschickt wird. Die Ergaenzung von https:// in `formular.ziel_adresse`
+     kaeme dann nie zum Zug. inputmode sorgt trotzdem fuer die richtige
+     Tastatur am Handy. #}
+  <input type="text" inputmode="url" id="target_url" name="target_url"
+         maxlength="2000" required
          value="{{ werte.get('target_url', '') }}"
          placeholder="https://welcometap.de">
 
@@ -22,6 +28,17 @@
   <label for="briefing">Briefing</label>
   <textarea id="briefing" name="briefing" rows="6" maxlength="4000"
             placeholder="Was ist das Angebot, für wen, welcher Ton? Was darf auf keinen Fall behauptet werden?">{{ werte.get('briefing', '') }}</textarea>
+
+  <label class="kasten">
+    <input type="checkbox" name="menschen" value="ja" {% if werte.get('menschen') %}checked{% endif %}>
+    Menschen in erzeugten Bildern erlauben
+  </label>
+  <p class="feldhilfe leise">
+    Standard ist aus: dann zeigen die Bilder Gegenstände, Räume und Licht.
+    Angehakt dürfen Erwachsene darauf sein, aber <strong>keine erkennbaren
+    echten Personen</strong> und keine Kinder. Das gilt nur für erzeugte
+    Bilder; was du selbst hochlädst, ist davon nicht berührt.
+  </p>
 
   <label for="status">Status</label>
   <select id="status" name="status">

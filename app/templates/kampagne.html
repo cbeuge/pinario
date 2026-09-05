@@ -23,7 +23,13 @@
   <input type="text" id="name" name="name" maxlength="255" required value="{{ kampagne.name }}">
 
   <label for="target_url">Ziel-Link</label>
-  <input type="url" id="target_url" name="target_url" maxlength="2000" required
+  {# **type="text" und nicht "url".** Der Browser prueft ein url-Feld
+     selbst und lehnt "chaosbeenden.de" ab, bevor die Anfrage ueberhaupt
+     abgeschickt wird. Die Ergaenzung von https:// in `formular.ziel_adresse`
+     kaeme dann nie zum Zug. inputmode sorgt trotzdem fuer die richtige
+     Tastatur am Handy. #}
+  <input type="text" inputmode="url" id="target_url" name="target_url"
+         maxlength="2000" required
          value="{{ kampagne.target_url }}">
 
   <label for="briefing">Briefing</label>
@@ -39,10 +45,19 @@
     steht, geht wörtlich an das Modell — und was <em>nicht</em> hier steht,
     denkt es sich aus. Preise, Zahlen und Fristen also unbedingt
     hinschreiben.<br>
-    Zwei Grenzen: <strong>Videos gehen noch nicht</strong>, es entstehen Text
-    und Bild. Und die Bilder zeigen <strong>nie Menschen</strong> — pinario
-    erzeugt keine erfundenen Fotos von Personen, sondern Gegenstände, Räume
-    und Licht. Eine Szene zu beschreiben bringt hier also nichts.
+    <strong>Videos werden noch nicht erzeugt</strong>, es entstehen Text und
+    Bild. Eigene Videos lassen sich unter Varianten hochladen.
+  </p>
+
+  <label class="kasten">
+    <input type="checkbox" name="menschen" value="ja" {% if kampagne.menschen_erlaubt %}checked{% endif %}>
+    Menschen in erzeugten Bildern erlauben
+  </label>
+  <p class="feldhilfe leise">
+    Standard ist aus: dann zeigen die Bilder Gegenstände, Räume und Licht.
+    Angehakt dürfen Erwachsene darauf sein, aber <strong>keine erkennbaren
+    echten Personen</strong> und keine Kinder. Das gilt nur für erzeugte
+    Bilder; was du selbst hochlädst, ist davon nicht berührt.
   </p>
 
   <label for="status">Status</label>

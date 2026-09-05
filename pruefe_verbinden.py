@@ -54,7 +54,7 @@ from app.config import Config
 from app.extensions import db
 from app.kanaele import BEKANNT, KanalFehler, anmelde_urspruenge
 from app.kanaele.basis import Kanal
-from app.models import Account, Channel, ContentItem, User
+from app.models import Account, Campaign, CampaignChannel, Channel, ContentItem, User
 from app.zeit import jetzt
 
 ADRESSE = "https://pinario.example"
@@ -263,8 +263,6 @@ def _aufraeumen(app, kanal_zeile) -> None:
     mitten im Lauf unvollstaendig waere.
     """
     import os
-
-    from app.models import Campaign
 
     wurzel = app.config["UPLOAD_ORDNER"]
     db.session.rollback()
@@ -549,8 +547,6 @@ def _messen(app, adapter, kanal_zeile, nutzer):  # noqa: C901
     # Der teure Fehler dabei waere `get` statt `getlist`: dann kaeme nur
     # das erste Haekchen an, und wer drei Seiten anhakt, bespielt eine.
 
-    from app.models import Campaign, CampaignChannel
-
     client.post("/kanaele/pinterest/verbinden", data={"csrf_token": _token(client)})
     client.get(f"/kanaele/pinterest/rueckruf?code=c&state={adapter.zustaende[-1]}")
 
@@ -621,8 +617,6 @@ def _messen(app, adapter, kanal_zeile, nutzer):  # noqa: C901
     # Zeitplan ueberspringt sie stillschweigend.
 
     import io
-
-    from app.models import Campaign, CampaignChannel, ContentItem
 
     kampagne = Campaign(name="Prüfung Upload", target_url="https://example.de",
                         status="draft")
@@ -695,6 +689,58 @@ def _messen(app, adapter, kanal_zeile, nutzer):  # noqa: C901
            _anzahl() == vorher)
     pruefe("Und die Meldung nennt, was der Kanal annimmt",
            "Angenommen wird".encode() in antwort.data)
+
+    # --- Der Ziel-Link im Formular ------------------------------------
+    #
+    # Am 05.09.2026 gemeldet: "chaosbeenden.de" wurde abgelehnt, obwohl die
+    # Pruefung es ergaenzt. Der Grund lag im HTML: `type="url"` laesst der
+    # **Browser** gar nicht erst abschicken, und die serverseitige Ergaenzung
+    # kommt nie zum Zug. Geprueft wird deshalb beides -- die Funktion und das
+    # Feld.
+
+    seite = client.get("/kampagnen/neu").data.decode()
+    pruefe("Das Ziel-Link-Feld ist kein url-Feld",
+           'type="url"' not in seite)
+    pruefe("Sondern ein Textfeld mit url-Tastatur",
+           'inputmode="url"' in seite)
+
+    antwort = client.post(
+        "/kampagnen/neu",
+        data={
+            "csrf_token": _token(client),
+            "name": "Prüfung Ziel-Link",
+            "target_url": "chaosbeenden.de",
+            "status": "draft",
+        },
+        follow_redirects=True,
+    )
+    ohne_schema = db.session.scalar(
+        select(Campaign).where(Campaign.name == "Prüfung Ziel-Link")
+    )
+    pruefe("Eine Adresse ohne https wird angenommen", ohne_schema is not None)
+    pruefe("Und mit https gespeichert",
+           ohne_schema is not None
+           and ohne_schema.target_url == "https://chaosbeenden.de")
+    # Menschen sind aus, solange niemand sie anhakt.
+    pruefe("Menschen im Bild sind standardmaessig aus",
+           ohne_schema is not None and not ohne_schema.menschen_erlaubt)
+
+    client.post(
+        f"/kampagnen/{ohne_schema.id}/bearbeiten",
+        data={
+            "csrf_token": _token(client),
+            "name": "Prüfung Ziel-Link",
+            "target_url": "chaosbeenden.de",
+            "status": "draft",
+            "menschen": "ja",
+        },
+    )
+    db.session.refresh(ohne_schema)
+    pruefe("Menschen lassen sich an der Kampagne einschalten",
+           ohne_schema.menschen_erlaubt)
+
+    db.session.delete(ohne_schema)
+    db.session.commit()
 
     # --- Textvorschlaege zur hochgeladenen Datei ----------------------
     #

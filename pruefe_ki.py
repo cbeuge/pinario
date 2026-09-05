@@ -316,6 +316,19 @@ BILD_STANDARD = {
 }
 
 BILD_ENTHALTEN = [
+    # Menschen sind eine Entscheidung an der Kampagne, kein Naturgesetz.
+    # **Gesteuert allein ueber die Anfrage**: das SDK kennt zwar einen
+    # Parameter `person_generation`, die Gemini Developer API lehnt ihn aber
+    # ab -- und zwar jede Bilderzeugung, auch die ohne Menschen. Am
+    # 05.09.2026 gegen die echte API gemessen, bevor es ausgerollt wurde.
+    ("Mit Erlaubnis: Menschen duerfen aufs Bild",
+     {"menschen": True}, ["Menschen dürfen im Bild sein"]),
+    ("Mit Erlaubnis: aber keine erkennbaren echten Personen",
+     {"menschen": True}, ["Keine erkennbaren echten Personen"]),
+    ("Mit Erlaubnis: keine Kinder",
+     {"menschen": True}, ["Keine Kinder"]),
+    ("Ohne Erlaubnis: das Verbot steht drin",
+     {}, ["**Keine Menschen**"]),
     ("Der Titel des Beitrags steht drin", {}, ["Behalte den Ueberblick"]),
     ("Die Beschreibung auch", {}, ["Alle Ausgaben an einem Ort."]),
     ("Das Briefing als Hintergrund", {}, ["Finanzueberblick ohne Bankanbindung."]),
@@ -331,6 +344,10 @@ BILD_ENTHALTEN = [
 # Was auf keinen Fall drinstehen darf: alles, was nach einer Textaufgabe
 # klingt. Genau daran ist die alte Fassung gescheitert.
 BILD_FEHLEN = [
+    ("Mit Erlaubnis steht das Verbot NICHT mehr drin",
+     {"menschen": True}, ["**Keine Menschen**"]),
+    ("Ohne Erlaubnis keine Regeln fuer Menschen im Bild",
+     {}, ["Menschen dürfen im Bild sein"]),
     ("Keine Anweisung zum Texteschreiben", {}, ["Du schreibst"]),
     ("Keine Zeichengrenzen fuer Texte", {}, ["hoechstens", "Zeichen."]),
     ("Kein Ziel-Link im Bildauftrag", {}, ["Ziel-Link"]),

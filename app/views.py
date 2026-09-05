@@ -177,6 +177,7 @@ def kampagne_neu():
                     pflicht=False,
                 )
                 or None,
+                menschen_erlaubt=request.form.get("menschen") == "ja",
                 status=formular.aus_auswahl(
                     request.form.get("status"), KAMPAGNE_STATUS, "Der Status"
                 ),
@@ -335,6 +336,7 @@ def kampagne_bearbeiten(kampagne_id: int):
             max_laenge=4000,
             pflicht=False,
         ) or None
+        eintrag.menschen_erlaubt = request.form.get("menschen") == "ja"
         eintrag.status = formular.aus_auswahl(
             request.form.get("status"), KAMPAGNE_STATUS, "Der Status"
         )

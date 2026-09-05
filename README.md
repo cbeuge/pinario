@@ -312,6 +312,12 @@ Vier Schritte, und die Seiten führen von einem zum nächsten:
 1. **Kampagne anlegen** — Name, Ziel-Link, Briefing. Der Ziel-Link darf ohne
    `https://` eingetippt werden, es wird ergänzt; abgelehnt wird nur, was
    gar keine Adresse ist (ein fremdes Schema, ein Name ohne Endung).
+
+   **Das Feld ist bewusst `type="text"` und nicht `type="url"`.** Ein
+   url-Feld prüft der Browser selbst und lässt „chaosbeenden.de" gar nicht
+   erst abschicken — die Ergänzung im Server käme nie zum Zug. Genau daran
+   hing es am 05.09.2026: die Prüffunktion war richtig und lief nie.
+   `inputmode="url"` sorgt trotzdem für die richtige Tastatur am Handy.
 2. **Kanal einschalten** an der Kampagne. Danach geht es **direkt zu den
    Varianten** — ein frisch eingeschalteter Kanal hat nichts zu posten, und
    den nächsten Schritt selbst suchen zu müssen war der Bruch im Ablauf.
@@ -389,8 +395,17 @@ Regeln stehen fest darin:
 * **Keine Schrift im Bild.** Bildmodelle setzen gern Wörter hinein und
   schreiben sie falsch. Ein Pin mit Tippfehler im Bild fällt erst draußen
   auf.
-* **Keine Menschen.** pinario erzeugt keine erfundenen Fotos von Personen —
-  und Anfragen mit Personenbeschreibung laufen zusätzlich in Filter.
+* **Menschen nur, wenn die Kampagne es erlaubt** (`campaigns.menschen_erlaubt`,
+  Standard aus). Angehakt dürfen Erwachsene aufs Bild, aber keine erkennbaren
+  echten Personen und keine Kinder.
+
+  **Gesteuert wird das allein über die Anfrage.** Das SDK kennt zwar einen
+  Parameter `person_generation`, die Gemini Developer API lehnt ihn aber ab:
+  „only supported in Gemini Enterprise Agent Platform mode". Und sie lehnt
+  damit **jede** Bilderzeugung ab, auch die ohne Menschen. Am 05.09.2026
+  gegen die echte API gemessen, bevor es ausgerollt wurde. Der Text allein
+  reicht: ohne Erlaubnis kam ein gedeckter Tisch zurück, mit Erlaubnis ein
+  Paar beim Frühstück.
 * **Keine Logos und Marken**, aus demselben Grund.
 
 Dazu das **Seitenverhältnis vom Kanal** (`bild_format`): Pinterest 2:3,

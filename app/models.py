@@ -121,6 +121,16 @@ class Campaign(db.Model):
     # an Gemini. Ohne dieses Feld hätte die Anfrage nur Name und Ziel-Link,
     # und was in der Anfrage fehlt, denkt sich das Modell aus.
     briefing: Mapped[str | None] = mapped_column(Text)
+    # Ob erzeugte Bilder Menschen zeigen dürfen.
+    #
+    # Steht an der Kampagne und nicht global: bei einem Werkzeug für
+    # Ferienwohnungen sind Menschen im Bild etwas anderes als bei einem
+    # Finanzüberblick, und wer es global setzt, setzt es für den falschen
+    # Fall mit. Standard aus — ein erfundener Mensch in einem Werbebild ist
+    # eine Entscheidung, die man treffen soll und nicht geschenkt bekommt.
+    menschen_erlaubt: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False, server_default="false"
+    )
     status: Mapped[str] = mapped_column(String(20), default="draft", nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=jetzt, nullable=False

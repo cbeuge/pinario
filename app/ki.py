@@ -380,6 +380,7 @@ def bild_anfrage_bauen(
     beschreibung: str,
     briefing: str | None,
     format: str = "1:1",
+    menschen: bool = False,
 ) -> str:
     """Die Anfrage für das Bild — und **nur** für das Bild.
 
@@ -399,9 +400,12 @@ def bild_anfrage_bauen(
     * **Keine Schrift im Bild.** Bildmodelle setzen gern Wörter hinein, und
       sie schreiben sie falsch. Ein Pin mit einem Tippfehler im Bild ist
       unbrauchbar, und auffallen würde er erst draußen.
-    * **Keine Menschen.** Zum einen postet pinario keine erfundenen Fotos von
-      Personen, zum anderen laufen Anfragen mit Personenbeschreibung in
-      Filter — und dann steht wieder ein Text ohne Bild da.
+    * **Menschen nur, wenn die Kampagne es erlaubt** (`menschen`). Der
+      Standard ist aus: ein erfundener Mensch in einem Werbebild ist eine
+      Entscheidung, die man treffen soll und nicht geschenkt bekommt. Wo sie
+      getroffen ist, geht sie hier **und** in `bild_erzeugen` gemeinsam
+      durch — die Anfrage allein reicht nicht, Gemini hat dafür einen
+      eigenen Schalter, und ohne ihn kommt gar kein Bild.
     * **Keine Logos und keine Marken**, aus demselben Grund.
     """
     briefing = (briefing or "").strip()
@@ -435,15 +439,34 @@ def bild_anfrage_bauen(
         "",
         "Was auf keinen Fall hineingehört:",
         "- **Keine Schrift, keine Buchstaben, keine Zahlen im Bild.**",
-        "- **Keine Menschen**, auch nicht angeschnitten, von hinten oder",
-        "  verschwommen. Keine Hände.",
+    ]
+    if not menschen:
+        zeilen += [
+            "- **Keine Menschen**, auch nicht angeschnitten, von hinten oder",
+            "  verschwommen. Keine Hände.",
+        ]
+    zeilen += [
         "- Keine Logos, Markenzeichen oder erfundenen Produktverpackungen.",
         "- Keine Diagramme und keine Bildschirminhalte, die Zahlen zeigen.",
     ]
+    if menschen:
+        # Erlaubt heißt nicht beliebig. Erkennbare echte Personen sind ein
+        # Rechtsproblem und keine Geschmacksfrage, und ein Modell setzt ohne
+        # diese Zeilen gern jemanden Bekanntes hinein.
+        zeilen += [
+            "",
+            "Menschen dürfen im Bild sein. Dabei gilt:",
+            "- **Keine erkennbaren echten Personen**, keine Prominenten,",
+            "  keine Personen des öffentlichen Lebens.",
+            "- Erwachsene. Keine Kinder und keine Jugendlichen.",
+            "- Natürlich und beiläufig, kein gestelltes Stockfoto-Lächeln.",
+        ]
     return chr(10).join(zeilen)
 
 
-def bild_erzeugen(anfrage: str, format: str = "1:1") -> bytes:
+def bild_erzeugen(
+    anfrage: str, format: str = "1:1", menschen: bool = False
+) -> bytes:
     """Ein Bild zum Beitrag. Liefert die Rohdaten, speichert nichts.
 
     `format` ist das Seitenverhältnis und kommt vom Kanal: ein Pin steht
@@ -461,6 +484,13 @@ def bild_erzeugen(anfrage: str, format: str = "1:1") -> bytes:
             contents=anfrage,
             config=types.GenerateContentConfig(
                 response_modalities=["IMAGE"],
+                # **Kein `person_generation` hier.** Das SDK kennt den
+                # Parameter, die Gemini Developer API nicht: sie lehnt mit
+                # "only supported in Gemini Enterprise Agent Platform mode"
+                # ab, und zwar **jede** Bilderzeugung, auch die ohne
+                # Menschen. Gesteuert wird das deshalb allein über die
+                # Anfrage, siehe `bild_anfrage_bauen`. Am 05.09.2026 gegen
+                # die echte API gemessen, bevor es ausgerollt wurde.
                 image_config=types.ImageConfig(aspect_ratio=format),
             ),
         )
