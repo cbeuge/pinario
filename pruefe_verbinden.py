@@ -889,6 +889,8 @@ def _messen(app, adapter, kanal_zeile, nutzer):  # noqa: C901
     # Ein frisch eingeschalteter Kanal hat nichts zu posten; der naechste
     # Schritt ist immer derselbe.
 
+    from app.models import ContentItem as CI
+
     zweite = Campaign(name="Prüfung Ablauf", target_url="https://example.de",
                       status="draft")
     db.session.add(zweite)
@@ -931,14 +933,72 @@ def _messen(app, adapter, kanal_zeile, nutzer):  # noqa: C901
     pruefe("Beim blossen Aendern bleibt man auf der Kampagne",
            "/varianten" not in antwort.headers.get("Location", ""))
 
+    # --- Ein geaenderter Takt vergibt die Termine neu -----------------
+    #
+    # Am 05.09.2026 gemeldet: das Zeitfenster verschoben, und der Beitrag
+    # blieb auf der alten Uhrzeit stehen. `einplanen` fasst absichtlich nur
+    # an, was noch keinen Termin hat -- fuer geaenderte Einstellungen hiess
+    # das aber, dass sich nichts ruehrt.
+
+    zweite.status = "active"
+    db.session.commit()
+    takt = CI(
+        campaign_channel_id=neue_verbindung.id, variant_group="takt",
+        type="image", quelle="upload", title="Mit Termin",
+        description="x", file_path="hochgeladen/x.jpg", status="ready",
+    )
+    db.session.add(takt)
+    db.session.commit()
+
+    def _speichern(**abweichung):
+        daten = {
+            "csrf_token": _token(client),
+            "content_source": "ai_generated",
+            "posts_per_day": "2",
+            "zeit_von": "09:00",
+            "zeit_bis": "21:00",
+            "ablagen_gewaehlt": "ja",
+            "board_ids": ["7"],
+        }
+        daten.update(abweichung)
+        return client.post(
+            f"/kampagnen/{zweite.id}/kanal/{kanal_zeile.id}",
+            data=daten, follow_redirects=True,
+        )
+
+    _speichern()
+    db.session.refresh(takt)
+    pruefe("Eine freigegebene Variante bekommt einen Termin",
+           takt.geplant_fuer is not None)
+    vorher = takt.geplant_fuer
+
+    antwort = _speichern(zeit_von="15:30", zeit_bis="16:00")
+    db.session.refresh(takt)
+    pruefe("Ein geaendertes Zeitfenster verschiebt den Termin",
+           takt.geplant_fuer is not None and takt.geplant_fuer != vorher)
+    pruefe("Und die Meldung sagt es",
+           "neu vergeben".encode() in antwort.data)
+
+    vorher = takt.geplant_fuer
+    antwort = _speichern(zeit_von="15:30", zeit_bis="16:00", board_ids=["7", "8"])
+    db.session.refresh(takt)
+    # Wer bloss eine Seite dazuwaehlt, soll seine Termine behalten.
+    pruefe("Eine andere Seite laesst den Termin in Ruhe",
+           takt.geplant_fuer == vorher)
+    pruefe("Und meldet auch nichts",
+           "neu vergeben".encode() not in antwort.data)
+
+    db.session.delete(takt)
+    db.session.commit()
+    zweite.status = "draft"
+    db.session.commit()
+
     # --- Der Zeitplan sagt, warum nichts ansteht ----------------------
     #
     # Am 05.09.2026 gemeldet: eine freigegebene Variante war im Zeitplan
     # nirgends zu sehen, und daneben stand "Kein Konto verbunden", obwohl
     # Facebook verbunden war. Beides Anzeigefehler, beide fuehren genau in
     # die falsche Richtung.
-
-    from app.models import ContentItem as CI
 
     wartende = CI(
         campaign_channel_id=neue_verbindung.id, variant_group="wartet",

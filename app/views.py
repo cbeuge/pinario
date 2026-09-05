@@ -445,11 +445,53 @@ def kampagne_kanal(kampagne_id: int, channel_id: int):
             campaign_id=eintrag.id, channel_id=channel_id
         )
         db.session.add(verbindung)
+
+    # **Ändert sich der Takt, gelten die alten Termine nicht mehr.**
+    # `einplanen` fasst nur an, was noch keinen Termin hat — sonst würde ein
+    # Lauf ständig alles umsortieren. Für schon vergebene Termine hieß das
+    # aber: wer das Zeitfenster verschiebt, ändert nichts, und der Beitrag
+    # geht weiter zur alten Zeit raus. Also werden sie hier freigegeben und
+    # gleich neu vergeben.
+    #
+    # Nur bei den drei Werten, die den Takt bestimmen. Wer bloß eine Seite
+    # dazuwählt, soll seine Termine behalten.
+    alt_werte = (verbindung.settings or {}) if not neu else {}
+    takt_geaendert = any(
+        alt_werte.get(feld) != einstellungen.get(feld)
+        for feld in ("posts_per_day", "time_window", "weekdays")
+    )
+
     verbindung.enabled = True
     verbindung.content_source = quelle
     verbindung.settings = einstellungen
-
     db.session.commit()
+
+    neu_vergeben = 0
+    if takt_geaendert and not neu:
+        # `posting` bleibt unangetastet: dieser Eintrag ist gerade unterwegs
+        # zur Plattform, und ihm den Termin wegzunehmen hieße, ihn ein
+        # zweites Mal einzuplanen.
+        offen = db.session.scalars(
+            select(ContentItem).where(
+                ContentItem.campaign_channel_id == verbindung.id,
+                ContentItem.status == "ready",
+                ContentItem.geplant_fuer.is_not(None),
+            )
+        ).all()
+        for inhalt in offen:
+            inhalt.geplant_fuer = None
+        if offen:
+            db.session.commit()
+        neu_vergeben = len(offen)
+
+    # **Immer einplanen, nicht nur bei geändertem Takt.** `einplanen` fasst
+    # nur an, was keinen Termin hat, ist also billig und harmlos — und wer
+    # gerade gespeichert hat, will das Ergebnis sehen und nicht bis zum
+    # nächsten Timer-Lauf warten. Es rechnet nur mit Zeiten und der
+    # Datenbank, geht nicht ins Netz und darf deshalb hier stehen.
+    from .zeitplan import einplanen
+
+    einplanen()
 
     # **Nach dem Einschalten geht es zu den Varianten und nicht zurück auf
     # die Kampagne.** Ein frisch eingeschalteter Kanal hat nichts zu posten;
@@ -465,7 +507,14 @@ def kampagne_kanal(kampagne_id: int, channel_id: int):
             url_for("haupt.varianten", verbindung_id=verbindung.id)
         )
 
-    flash(f"{kanal_eintrag.name} gespeichert.", "erfolg")
+    if neu_vergeben:
+        flash(
+            f"{kanal_eintrag.name} gespeichert. {neu_vergeben} Termin(e) neu "
+            "vergeben, weil sich der Takt geändert hat.",
+            "erfolg",
+        )
+    else:
+        flash(f"{kanal_eintrag.name} gespeichert.", "erfolg")
     return redirect(url_for("haupt.kampagne", kampagne_id=kampagne_id))
 
 
