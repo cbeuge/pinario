@@ -663,6 +663,12 @@ class Instagram(MetaKanal):
             typen=("image",),
             # Instagram schneidet die Bildunterschrift hier ab.
             max_beschreibung=2200,
+            # Und hier fängt es überhaupt erst an zu wirken. Ein Text von
+            # 280 Zeichen ist auf Instagram zu kurz: er ist gelesen, bevor
+            # jemand hängenbleibt. Mit Absätzen, weil eine Wand aus Text
+            # auf dem Telefon überblättert wird.
+            min_beschreibung=500,
+            absaetze=True,
             # Instagram bevorzugt hochkant, 4:5 fuellt den Bildschirm ohne
             # dass etwas abgeschnitten wird.
             bild_format="4:5",

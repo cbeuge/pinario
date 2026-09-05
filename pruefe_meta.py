@@ -160,6 +160,13 @@ def main() -> int:  # noqa: C901
                not instagram.link_klickbar)
         pruefe("Facebook nennt seine Ablagen Seiten",
                facebook.ablage_mehrzahl == "Seiten")
+        pruefe("Instagram will laengere Texte als 280 Zeichen",
+               instagram.min_beschreibung >= 500)
+        pruefe("Und die Untergrenze liegt unter der Obergrenze",
+               instagram.min_beschreibung < instagram.max_beschreibung)
+        pruefe("Instagram will Absaetze", instagram.absaetze)
+        pruefe("Facebook bleibt dabei unveraendert",
+               facebook.min_beschreibung == 0 and not facebook.absaetze)
         pruefe("Instagram nennt seine Ablagen Konten",
                instagram.ablage_mehrzahl == "Konten")
 

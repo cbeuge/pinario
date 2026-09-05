@@ -65,6 +65,8 @@ def anfrage_bauen(
     kanal_name: str,
     max_beschreibung: int,
     anzahl: int,
+    min_beschreibung: int = 0,
+    absaetze: bool = False,
     affiliate_erlaubt: bool,
     link_im_text: bool = False,
     link_klickbar: bool = True,
@@ -111,13 +113,34 @@ def anfrage_bauen(
             "  die du nur aus dem Namen oder der Adresse ableiten könntest.",
         ]
 
+    if min_beschreibung and min_beschreibung < max_beschreibung:
+        # **Die Untergrenze zuerst.** Steht nur "höchstens" da, schreibt das
+        # Modell so kurz wie möglich -- auf Instagram kamen so 280 Zeichen
+        # heraus, wo 500 der Anfang wären.
+        laenge = (
+            f"- Beschreibung mindestens {min_beschreibung} und höchstens "
+            f"{max_beschreibung} Zeichen. Die {min_beschreibung} sind keine "
+            "Zielmarke, die man knapp erreicht, sondern die Untergrenze -- "
+            "nutze den Platz."
+        )
+    else:
+        laenge = (
+            f"- Beschreibung höchstens {max_beschreibung} Zeichen."
+        )
+
     zeilen += [
         "",
         "Regeln:",
-        f"- Titel höchstens {MAX_TITEL} Zeichen, Beschreibung höchstens "
-        f"{max_beschreibung} Zeichen.",
+        f"- Titel höchstens {MAX_TITEL} Zeichen.",
+        laenge,
         "- Deutsch, geduzt, natürliche Sprache. Keine Werbefloskeln, keine",
         "  Ausrufezeichen-Ketten, keine Emoji-Reihen, höchstens ein Emoji.",
+        *([
+            "- Gliedere die Beschreibung in mehrere Absätze, getrennt durch",
+            "  eine Leerzeile. Kein durchgehender Block: der erste Absatz",
+            "  ist kurz und muss für sich stehen, weil die Plattform den",
+            "  Rest zunächst wegklappt.",
+        ] if absaetze else []),
         "- **Erfinde nichts.** Keine Preise, Prozentangaben, Zahlen, Fristen,",
         "  Garantien, Auszeichnungen, Bewertungen, Nutzerzahlen, Ortsangaben",
         "  oder Namen, die oben nicht stehen. Lieber allgemeiner formulieren",

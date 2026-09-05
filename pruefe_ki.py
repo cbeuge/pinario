@@ -96,6 +96,17 @@ ENTHALTEN = [
      {"zu_vorlage": True}, ["was darauf zu sehen ist"]),
     ("Zur Vorlage: nichts hineinerfinden",
      {"zu_vorlage": True}, ["Erfinde nichts hinein"]),
+    # Ohne Untergrenze schreibt das Modell so kurz wie moeglich -- auf
+    # Instagram kamen 280 Zeichen heraus, wo 500 der Anfang waeren. Das Wort
+    # "hoechstens" zieht fuer sich genommen in diese Richtung.
+    ("Mindestlaenge: sie steht in der Anfrage",
+     {"min_beschreibung": 500}, ["mindestens 500", "hoechstens".replace("oe", "ö")]),
+    ("Mindestlaenge: sie ist keine Zielmarke",
+     {"min_beschreibung": 500}, ["nutze den Platz"]),
+    ("Absaetze: ausdruecklich mit Leerzeile",
+     {"absaetze": True}, ["Leerzeile", "Kein durchgehender Block"]),
+    ("Absaetze: der erste Absatz steht fuer sich",
+     {"absaetze": True}, ["fuer sich stehen".replace("ue", "ü")]),
 ]
 
 # (Beschreibung, Abweichung, was NICHT drinstehen darf)
@@ -117,6 +128,13 @@ FEHLEN = [
     ("Ohne das Haekchen kein Verweis aufs Profil",
      {"link_im_text": True, "link_klickbar": False},
      ["Verweise am Ende stattdessen"]),
+    ("Ohne Mindestlaenge steht dort keine", {}, ["mindestens"]),
+    ("Ohne Absatz-Vorgabe steht dort nichts davon", {}, ["Leerzeile"]),
+    # Eine Untergrenze ueber der Obergrenze waere eine Anfrage, die sich
+    # selbst widerspricht. Pinterest hat 800 Zeichen -- eine Vorgabe von
+    # 900 darf nicht durchschlagen.
+    ("Untergrenze ueber der Obergrenze wird verworfen",
+     {"min_beschreibung": 900, "max_beschreibung": 800}, ["mindestens"]),
 ]
 
 

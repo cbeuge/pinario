@@ -110,6 +110,17 @@ class Kanal:
     # richtet sich danach; ohne diesen Wert schreibt Gemini Texte, die beim
     # Posten abgeschnitten werden oder den Aufruf scheitern lassen.
     max_beschreibung: int = 500
+    # Wie lang ein Text dort **mindestens** sein sollte, und ob er in
+    # Absätze gehört. Beides ist keine Grenze der Plattform, sondern eine
+    # Frage dessen, was dort gelesen wird: auf Instagram ist eine
+    # Bildunterschrift von drei Zeilen zu wenig, um jemanden zu halten, und
+    # ein Block ohne Leerzeilen wird auf dem Telefon überblättert.
+    #
+    # 0 heißt "keine Vorgabe". Ohne die Angabe schreibt das Modell so kurz
+    # wie möglich, weil das Wort "höchstens" für sich genommen in diese
+    # Richtung zieht.
+    min_beschreibung: int = 0
+    absaetze: bool = False
     # Ob dort Affiliate-Inhalte hingehören. Google Business Profile sagt
     # ausdrücklich nein, siehe den Adapter. Der Wert steht hier und nicht als
     # Sonderfall in der Kampagnen-Maske, damit die Regel an einer Stelle lebt.
